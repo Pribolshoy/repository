@@ -1,1 +1,1 @@
-# repository
+# Abstract repository

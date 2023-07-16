@@ -1,0 +1,23 @@
+{
+    "name": "pribolshoy/repository",
+    "description": "Public library",
+    "keywords": ["repository"],
+    "license": "BSD-3-Clause",
+    "authors": [
+        {
+            "name": "Nikolay Pribolshoy",
+            "email": "pribolshoy@gmail.com"
+        }
+    ],
+    "require": {
+        "php": ">=7.4"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^9.5.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "pribolshoy\\repository\\": "src"
+        }
+    }
+}
