@@ -8,7 +8,7 @@ use pribolshoy\repository\interfaces\RepositoryInterface;
 /**
  * Class AbstractRepository
  *
- * Abstract class for realisation of searching a specific entity.
+ * Abstract class for realization of searching specific entity.
  *
  * @package app\repositories
  */
@@ -16,6 +16,7 @@ abstract class AbstractRepository implements RepositoryInterface
 {
     /**
      * Class of model object which will using for search.
+     * It needs for implementing self::model
      *
      * @var string
      */
@@ -23,13 +24,15 @@ abstract class AbstractRepository implements RepositoryInterface
 
     /**
      * Object which will using for search.
+     * For example, it could be ActiveRecord in Yii2
      *
      * @var object
      */
     protected ?object $model = null;
 
     /**
-     * Params which will using for collecting filters.
+     * Params which will using for external collecting filters.
+     * For example, GET params.
      *
      * @var array
      */
@@ -37,7 +40,7 @@ abstract class AbstractRepository implements RepositoryInterface
 
     /**
      * Properties which will using for building a query.
-     * It collects from params property.
+     * It collects from self::params property.
      * @var array
      */
     public array $filter = [];
@@ -80,6 +83,11 @@ abstract class AbstractRepository implements RepositoryInterface
         return $this->filter;
     }
 
+    public function getFilter(string $name)
+    {
+        return $this->getFilters()[$name] ?? null;
+    }
+
     /**
      * @return bool|mixed
      */
@@ -120,8 +128,20 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     protected function collectFilter()
     {
+        $this->modifyParams();
         $this->defaultFilter();
         $this->filter();
+        return $this;
+    }
+
+
+    /**
+     * Any modification of params before collecting of filter
+     *
+     * @return object
+     */
+    protected function modifyParams() :object
+    {
         return $this;
     }
 
