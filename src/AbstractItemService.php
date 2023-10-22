@@ -3,17 +3,34 @@
 namespace pribolshoy\repository;
 
 use pribolshoy\repository\interfaces\EntityServiceInterface;
+use pribolshoy\repository\traits\CachebleServiceTrait;
 
 /**
  * Class AbstractEntityService
  *
  * Abstract class for realization of service object
- * by which we can using items collection.
+ * by which we can using Repositoriess.
  *
  * @package app\repositories
  */
 abstract class AbstractItemService implements EntityServiceInterface
 {
+    use CachebleServiceTrait;
+
+    /**
+     * @var string namespace где хранятся репозитории.
+     */
+    protected ?string $repository_path = "";
+
+    /**
+     *
+     * @var string namespace класса репозитория.
+     * Нужен для создания репозитрия через который
+     * сервис будет получать и кешировать элементы.
+     */
+    protected ?string $repository_class = "";
+
+
     /**
      * Elements queried by repository
      * @var array
@@ -25,6 +42,12 @@ abstract class AbstractItemService implements EntityServiceInterface
      */
     protected array $hashtable = [];
 
+
+    /**
+     * @var array Сортировка элементов. Может переопределяться
+     */
+    protected array $sorting = ['name' => SORT_ASC];
+
     /**
      * AbstractItemService constructor.
      */
@@ -34,6 +57,11 @@ abstract class AbstractItemService implements EntityServiceInterface
     }
 
     protected function init() {}
+
+    protected function getRepositoryClass()
+    {
+        return $this->repository_path . $this->repository_class;
+    }
 
     public function getItems()
     {
@@ -86,6 +114,16 @@ abstract class AbstractItemService implements EntityServiceInterface
             return $this->getItems()[$key] ?? null;
         }
         return null;
+    }
+
+    /**
+     * @param array $sorting
+     * @return $this
+     */
+    public function setSorting(array $sorting): object
+    {
+        $this->sorting = $sorting;
+        return $this;
     }
 }
 

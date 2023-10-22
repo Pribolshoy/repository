@@ -21,6 +21,7 @@ abstract class AbstractARRepository extends AbstractRepository
      *
      * @param array $params
      * @param null $model_class
+     * @throws \pribolshoy\exceptions\RepositoryException
      */
     public function __construct($params = [], $model_class = null)
     {
@@ -36,6 +37,7 @@ abstract class AbstractARRepository extends AbstractRepository
      * было пользоваться, конфигурировать.
      *
      * @return $this
+     * @throws \pribolshoy\exceptions\RepositoryException
      */
     protected function makeModel()
     {
