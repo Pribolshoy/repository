@@ -2,44 +2,30 @@
 
 namespace pribolshoy\repository\frameworks\yii2;
 
-use pribolshoy\repository\AbstractRepository;
+use pribolshoy\repository\AbstractCachebleRepository;
+use pribolshoy\repository\frameworks\yii2\helpers\ARHelper;
+use pribolshoy\repository\traits\CatalogTrait;
 
 /**
  * Class AbstractARRepository
  *
  * Абстрактный класс от которого наследуются
- * все конкретные реализации исполюзующие в качестве модели/сущности
+ * все конкретные реализации использующие в качестве модели/сущности
  * ActiveQuery
  *
  * @package pribolshoy\repository\frameworks\yii2
  */
-abstract class AbstractARRepository extends AbstractRepository
+abstract class AbstractARRepository extends AbstractCachebleRepository
 {
-    /**
-     * AbstractARRepository constructor.
-     * Дополняется конструктор базового абстрактного класса.
-     *
-     * @param array $params
-     * @param null $model_class
-     * @throws \pribolshoy\exceptions\RepositoryException
-     */
-    public function __construct($params = [], $model_class = null)
-    {
-        parent::__construct($params, $model_class);
-        $this->makeModel();
-        $this->collectFilter();
-    }
+    use ARHelper, CatalogTrait;
+
+    protected ?string $driver_path = "\\pribolshoy\\repository\\frameworks\\yii2\\drivers\\";
 
     /**
-     * Инициация объекта self::model через который будет
-     * происходить поиск.
-     * Он должен быть подготовлен так, чтобы им сходу можно
-     * было пользоваться, конфигурировать.
-     *
      * @return $this
      * @throws \pribolshoy\exceptions\RepositoryException
      */
-    protected function makeModel()
+    protected function makeQueryBuilder()
     {
         $this->model = ($this->getModel())::find();
         return $this;
@@ -52,75 +38,81 @@ abstract class AbstractARRepository extends AbstractRepository
      */
     protected function beforeFetch()
     {
-        $this->addQueries();
+        $this->model->asArray($this->getIsArray());
         return parent::beforeFetch();
     }
 
-    protected function fetch(): void
+    /**
+     * В методе совершается выборка из БД в через уже
+     * подготовленную и собранную модель.
+     * Еще здесь происходит установка лимиа выборки и порядок
+     *
+     */
+    protected function fetch(): object
     {
+        $this->getTotal();
+        // после получения полного списка элементов
+        $this->addLimitAndOffset();
+
         if (isset($this->filter['single']) && $this->filter['single']) {
             $this->items = $this->model->one();
         } else {
             $this->items = $this->model->all();
         }
-    }
 
-    /**
-     * Дополняется метод родительского класса.
-     *
-     * @return $this
-     */
-    protected function collectFilter()
-    {
-        parent::collectFilter();
-        $this->addPreQueries();
         return $this;
     }
 
     /**
-     * В методе происходит подготовка параметров для
-     * выборки where, но которые должны быть получены
-     * с помощью предварительных выборок.
-     *
-     * Например, если для выборки необходимы данные
-     * которые можно получить только одним или несколькими
-     * отдельными запросами, то они складываются в этот метод.
-     *
-     * return $this
-     */
-    protected function addPreQueries() {return $this;}
-
-    /**
-     * В методе происходит установка всех параметров where
-     * которые будут в запросе
-     *
-     * return $this
-     */
-    protected function addQueries()  {return $this;}
-
-    /**
-     * В методе устанавливаются внешние связи через
-     * метод with()
-     *
-     * return $this
-     */
-    protected function addConnections() {return $this;}
-
-    /**
      * В методе устанавливаются limit и offset
      * запроса перед выборкой.
-     *
-     * return $this
      */
-    protected function addLimitAndOffset() {return $this;}
+    protected function addLimitAndOffset() :object
+    {
+        if ($orderBy = $this->getOrderbyByFilter()) $this->model->orderBy($orderBy);
+        $this->model
+            ->limit($this->filter['limit'])
+            ->offset($this->filter['offset'] ?? 0);
+
+        return $this;
+    }
+
+    protected function getTotal()
+    {
+        if ($this->getNeedTotal()) {
+            $pages = $this->initPages($this->model->count(), $this->filter['limit'])
+                ->getPages();
+            if ($this->existsFilter('page')) $pages->setPage($this->getFilters()['page'] - 1);
+            if ($pages->offset) $this->filter['offset'] = $pages->offset;
+        }
+        return $this;
+    }
 
     /**
+     * Задание пагинации
      *
+     * @param int $totalCount число количество элементов выборки
+     * @param int $pageSize количество элементов на странице
+     * @param bool $pageSizeParam
      *
-     * @return mixed
-     *
-     * return $this
+     * @return static
      */
-    protected function getTotal() {return $this;}
+    public function initPages(int $totalCount, int $pageSize, bool $pageSizeParam = false)
+    {
+        $pagination_class = $this->pagination_class;
+        // подключаем класс Pagination, выводим по $data['limit'] продуктов на страницу
+        $pages = new $pagination_class(['totalCount' => $totalCount, 'pageSize' => $pageSize]);
+        // приводим параметры в ссылке к ЧПУ
+        $pages->pageSizeParam = $pageSizeParam;
+        $this->setPages($pages);
+
+        return $this;
+    }
+
+    protected function getTableName(): string
+    {
+        return $this->getModel()::tableName();
+    }
+
 }
 

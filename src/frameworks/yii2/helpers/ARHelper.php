@@ -198,7 +198,7 @@ trait ARHelper
                 $result = [$orderBy => $sort];
             }
         }
-        
+
         if ($clear_columns && $result) {
             $new_result = [];
             foreach ($result as $column => $value) {

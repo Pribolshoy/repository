@@ -2,21 +2,18 @@
 
 namespace pribolshoy\repository\frameworks\yii2\drivers;
 
-use pribolshoy\repository\interfaces\CacheDriverInterface;
-use Yii;
-
-class MysqlDriver implements CacheDriverInterface
+class MysqlDriver extends BaseCacheDriver
 {
     protected string $component = 'dbCache';
 
     public function get(string $key, array $params = [])
     {
-        return Yii::$app->{$this->component}->get($key);
+        return \Yii::$app->{$this->component}->get($key);
     }
 
     public function set(string $key, $value, int $cache_duration = 0, array $params = []) :object
     {
-        Yii::$app->{$this->component}->set($key, $value);
+        \Yii::$app->{$this->component}->set($key, $value);
         return $this;
     }
 

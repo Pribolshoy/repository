@@ -13,24 +13,8 @@ use pribolshoy\repository\traits\CachebleServiceTrait;
  *
  * @package app\repositories
  */
-abstract class AbstractItemService implements EntityServiceInterface
+abstract class AbstractService implements EntityServiceInterface
 {
-    use CachebleServiceTrait;
-
-    /**
-     * @var string namespace где хранятся репозитории.
-     */
-    protected ?string $repository_path = "";
-
-    /**
-     *
-     * @var string namespace класса репозитория.
-     * Нужен для создания репозитрия через который
-     * сервис будет получать и кешировать элементы.
-     */
-    protected ?string $repository_class = "";
-
-
     /**
      * Elements queried by repository
      * @var array
@@ -49,7 +33,20 @@ abstract class AbstractItemService implements EntityServiceInterface
     protected array $sorting = ['name' => SORT_ASC];
 
     /**
-     * AbstractItemService constructor.
+     * @var string namespace где хранятся репозитории.
+     */
+    protected ?string $repository_path = "";
+
+    /**
+     *
+     * @var string namespace класса репозитория.
+     * Нужен для создания репозитрия через который
+     * сервис будет получать и кешировать элементы.
+     */
+    protected ?string $repository_class = "";
+
+    /**
+     * AbstractService constructor.
      */
     public function __construct()
     {
@@ -60,6 +57,10 @@ abstract class AbstractItemService implements EntityServiceInterface
 
     protected function getRepositoryClass()
     {
+        if (!$this->repository_class) {
+            //            throw new ServiceException('Не задан атрибут repository_class');
+            throw new \Exception('Не задан атрибут repository_class');
+        }
         return $this->repository_path . $this->repository_class;
     }
 

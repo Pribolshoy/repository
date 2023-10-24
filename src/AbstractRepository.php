@@ -15,6 +15,13 @@ use pribolshoy\repository\interfaces\RepositoryInterface;
 abstract class AbstractRepository implements RepositoryInterface
 {
     /**
+     * Lazy loading of connections
+     *
+     * @var boolean Lazy загрузка - связи не подгружаются при выборке.
+     */
+    public bool $lazy_load = false;
+
+    /**
      * Class of model object which will using for search.
      * It needs for implementing self::model
      *
@@ -52,10 +59,43 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     public array $items = [];
 
+    /**
+     * @var int Количество выбранных items
+     */
+    protected ?int $total = 0;
+
+    /**
+     * @var boolean Нужно ли получать количество всех строк
+     */
+    public bool $need_total = true;
+
     public function __construct(array $params = [], ?string $model_class = null)
     {
         $this->params = $params;
         if ($model_class) $this->model_class = $model_class;
+
+        $this->makeQueryBuilder();
+        $this->collectFilter();
+    }
+
+    /**
+     * Установка значения выборки в виде массива
+     * @param $need_total
+     * @return $this
+     */
+    public function setNeedTotal($need_total)
+    {
+        $this->need_total = $need_total;
+        return $this;
+    }
+
+    /**
+     * Получение значения выборки всего количества элементов
+     * @return bool
+     */
+    public function getNeedTotal(): bool
+    {
+        return $this->need_total;
     }
 
     /**
@@ -101,17 +141,29 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
+     * Making object for query building.
+     * Must be realized in child.
+     * @return $this
+     */
+    abstract protected function makeQueryBuilder();
+
+    /**
      * Actions before the search.
-     * Default is empty.
      *
      * return $this
      */
-    protected function beforeFetch()  {return $this;}
+    protected function beforeFetch()
+    {
+        // if lazy load is deactivate - connections dont adding
+        if (!$this->lazy_load) $this->addConnections();
+        $this->addQueries();
+        return $this;
+    }
 
     /**
-     * Executing of elements fetching using builded model.
+     * Executing of elements fetching.
      */
-    abstract protected function fetch(): void;
+    abstract protected function fetch(): object;
 
     /**
      * Actions after the search.
@@ -120,6 +172,13 @@ abstract class AbstractRepository implements RepositoryInterface
      * return $this
      */
     protected function afterFetch() {return $this;}
+
+    /**
+     * Configuration of entity connections with other entitiesю
+     *
+     * return $this
+     */
+    protected function addConnections() {return $this;}
 
     /**
      * Collecting of filters.
@@ -131,19 +190,23 @@ abstract class AbstractRepository implements RepositoryInterface
         $this->modifyParams();
         $this->defaultFilter();
         $this->filter();
+        $this->addPreQueries();
         return $this;
     }
 
 
     /**
-     * Any modification of params before collecting of filter
+     * Any modification of params before collecting of filter.
      *
      * @return object
      */
-    protected function modifyParams() :object
-    {
-        return $this;
-    }
+    protected function modifyParams() :object {return $this;}
+
+    /**
+     * Gets table name from entity or other way.
+     * @return string
+     */
+    abstract protected function getTableName() :string;
 
     /**
      * Standart filter collecting from params, which may be
@@ -155,6 +218,44 @@ abstract class AbstractRepository implements RepositoryInterface
      * Individual filter collecting from params, for a specific entity.
      */
     protected function filter() {}
+
+    /**
+     * В методе происходит подготовка параметров для
+     * выборки where, но которые должны быть получены
+     * с помощью предварительных выборок.
+     *
+     * Например, если для выборки необходимы данные
+     * которые можно получить только одним или несколькими
+     * отдельными запросами, то они складываются в этот метод.
+     *
+     * return $this
+     */
+    protected function addPreQueries() {return $this;}
+
+    /**
+     * В методе происходит установка всех параметров where
+     * которые будут в запросе
+     *
+     * return $this
+     */
+    protected function addQueries()  {return $this;}
+
+    /**
+     * В методе устанавливаются limit и offset
+     * запроса перед выборкой.
+     *
+     * return $this
+     */
+    protected function addLimitAndOffset() :object {return $this;}
+
+    /**
+     *
+     *
+     * @return mixed
+     *
+     * return $this
+     */
+    protected function getTotal() {return $this;}
 
     /**
      * Creating of model object for fetching elements by

@@ -30,6 +30,8 @@ interface RepositoryInterface
      */
     public function getFilters(): array;
 
+    public function getFilter(string $name);
+
     /**
      * Run search
      *

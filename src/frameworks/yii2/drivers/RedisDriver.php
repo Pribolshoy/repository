@@ -2,11 +2,7 @@
 
 namespace pribolshoy\repository\frameworks\yii2\drivers;
 
-//use Yii;
-
-use pribolshoy\repository\interfaces\CacheDriverInterface;
-
-class RedisDriver implements CacheDriverInterface
+class RedisDriver extends BaseCacheDriver
 {
     protected string $component = 'redis';
 
@@ -31,7 +27,7 @@ class RedisDriver implements CacheDriverInterface
      */
     protected function getAllHash(string $key, array $params = [])
     {
-        if (!$keys = Yii::$app->{$this->component}->hkeys($key)) return [];
+        if (!$keys = \Yii::$app->{$this->component}->hkeys($key)) return [];
 
         foreach ($keys as $field) {
             if ($item = $this->getOneHash($key, $field, $params)) {
@@ -57,7 +53,7 @@ class RedisDriver implements CacheDriverInterface
             $key .= '*';
         }
 
-        if (!$keys = Yii::$app->{$this->component}->keys($key)) return [];
+        if (!$keys = \Yii::$app->{$this->component}->keys($key)) return [];
 
         if ($keys) {
             foreach ($keys as $key) {
@@ -86,9 +82,9 @@ class RedisDriver implements CacheDriverInterface
             $field = array_pop($key_parts);
             $key = implode(':', $key_parts);
 
-            $data = Yii::$app->{$this->component}->hget($key, $field);
+            $data = \Yii::$app->{$this->component}->hget($key, $field);
         } else {
-            $data = Yii::$app->{$this->component}->get($key);
+            $data = \Yii::$app->{$this->component}->get($key);
         }
 
         return $data ? unserialize($data) : [];
@@ -105,7 +101,7 @@ class RedisDriver implements CacheDriverInterface
      */
     protected function getOneHash(string $key, string $field, array $params = [])
     {
-        $data = Yii::$app->{$this->component}->hget($key, $field);
+        $data = \Yii::$app->{$this->component}->hget($key, $field);
         return $data ? unserialize($data) : [];
     }
 
@@ -131,7 +127,7 @@ class RedisDriver implements CacheDriverInterface
 
     protected function setex(string $key, $value, int $cache_duration = 0, array $params = []) :object
     {
-        Yii::$app->{$this->component}->setex($key, $cache_duration, serialize($value));
+        \Yii::$app->{$this->component}->setex($key, $cache_duration, serialize($value));
         return $this;
     }
 
@@ -145,8 +141,8 @@ class RedisDriver implements CacheDriverInterface
             unset($keyParts[$count-1]);
             $key = implode(':', $keyParts);
 
-            Yii::$app->{$this->component}->hset($key, $field, serialize($value));
-            Yii::$app->{$this->component}->expireat($key, time() + $cache_duration);
+            \Yii::$app->{$this->component}->hset($key, $field, serialize($value));
+            \Yii::$app->{$this->component}->expireat($key, time() + $cache_duration);
         } else {
             $this->setex($key, $value, $cache_duration, $params);
         }
@@ -167,7 +163,7 @@ class RedisDriver implements CacheDriverInterface
 
     protected function del(string $key, array $params = []) :object
     {
-        Yii::$app->{$this->component}->del($key);
+        \Yii::$app->{$this->component}->del($key);
         return $this;
     }
 
@@ -181,7 +177,7 @@ class RedisDriver implements CacheDriverInterface
             unset($keyParts[$count-1]);
             $key = implode(':', $keyParts);
 
-            Yii::$app->{$this->component}->hdel($key, $field);
+            \Yii::$app->{$this->component}->hdel($key, $field);
         } else {
             $this->del($key, $params);
         }
