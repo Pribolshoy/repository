@@ -3,7 +3,6 @@
 namespace pribolshoy\repository;
 
 use pribolshoy\repository\traits\CatalogTrait;
-use yii\helpers\ArrayHelper;
 
 /**
  * Class AbstractCachebleService
@@ -18,22 +17,48 @@ abstract class AbstractCachebleService extends AbstractService
     use CatalogTrait;
 
     /**
-     *
-     * @var bool Можно ли пытаться получить элементы из
+     * Was initStorage() fired yet on this call.
+     * @var bool
+     */
+    protected bool $init_storage_fired = false;
+
+
+    /**
+     * Можно ли пытаться получить элементы из
      * кеша.
+     * @var bool
      */
     protected bool $use_cache = true;
 
     /**
-     *
-     * @var bool Является ли результат выбранным из  кеша
+     * Префикс к хешу кеширования.
+     * Нужно для возможности менять его.
+     * @var string
+     */
+    protected string $hash_prefix = '';
+
+
+    protected string $caching_postfix = '_caching';
+
+    /**
+     * Является ли результат выбранным из кеша
+     * @var bool
      */
     protected bool $is_from_cache = true;
 
     /**
-     * @var array Параметры передающиеся в дравер кеша при выборке
+     * Параметры передающиеся в дравер кеша при выборке
+     * @var array
      */
-    protected array $get_from_cache_params = ['strategy' => 'getAllHash'];
+    protected array $cache_params = [
+        'strategy' => 'getAllHash'
+    ];
+
+    /**
+     * Step of fetching rows by repository while init storage
+     * @var int
+     */
+    protected int $fetching_step = 1000;
 
     /**
      * @return bool
@@ -54,14 +79,57 @@ abstract class AbstractCachebleService extends AbstractService
     }
 
     /**
-     * @param array $get_from_cache_params
+     * @param string $hash_prefix
+     * @return $this
+     */
+    public function setHashPrefix(string $hash_prefix): self
+    {
+        $this->hash_prefix = $hash_prefix;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getHashPrefix(): string
+    {
+        return $this->hash_prefix;
+    }
+
+    /**
+     * @param string $name
+     * @param array $param
      *
      * @return object
      */
-    public function setGetFromCacheParams(array $get_from_cache_params): object
+    public function addCacheParams(string $name, array $param): object
     {
-        $this->get_from_cache_params = $get_from_cache_params;
+        $this->cache_params[$name] = $param;
         return $this;
+    }
+
+    /**
+     * @param array $cache_params
+     *
+     * @return object
+     */
+    public function setCacheParams(array $cache_params): object
+    {
+        $this->cache_params = $cache_params;
+        return $this;
+    }
+
+    /**
+     * @param string $name
+     * @return array
+     */
+    public function getCacheParams(string $name = ''): array
+    {
+        if ($name) {
+            return $this->cache_params[$name] ?? [];
+        }
+
+        return $this->cache_params;
     }
 
     /**
@@ -83,78 +151,283 @@ abstract class AbstractCachebleService extends AbstractService
     }
 
     /**
-     * Обновление одного элемента
-     * @param array $params
+     * @return int
+     */
+    public function getFetchingStep(): int
+    {
+        return $this->fetching_step;
+    }
+
+    /**
+     * @param int $fetching_step
+     * @return $this
+     */
+    public function setFetchingStep(int $fetching_step): self
+    {
+        $this->fetching_step = $fetching_step;
+        return $this;
+    }
+
+    /**
+     * Is cache exists for this repository.
+     *
+     * @param AbstractCachebleRepository|null $repository
+     *
+     * @return mixed
+     * @throws \Exception
+     */
+    protected function isCacheExists(?AbstractCachebleRepository $repository = null)
+    {
+        /** @var AbstractCachebleRepository $repository */
+        if (!$repository) $repository = $this->getRepository();
+
+        return $repository
+            ->setHashName(
+                $this->getHashPrefix()
+                . $repository->getHashPrefix()
+                . $this->caching_postfix
+            )
+            ->getFromCache();
+    }
+
+    /**
+     * Event will fired when we found that cache is not exists.
+     *
+     * @return bool
+     *
+     * @throws \Exception
+     */
+    protected function cacheNotExistsEvent(): bool
+    {
+        if (!$this->wasInitStorageFired()) {
+            $this->initStorageFired();
+            $this->initStorageEvent();
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Event will fired when we should to initiate cache.
+     * We can owerride this method in children, for example if
+     * we want to initiate cache async in queue.
+     *
+     * @return bool
+     *
+     * @throws \Exception
+     */
+    protected function initStorageEvent(): bool
+    {
+        $this->initStorage(null, true);
+        return true;
+    }
+
+    /**
+     * @return AbstractCachebleService
+     */
+    protected function initStorageFired(): self
+    {
+        $this->init_storage_fired = true;
+        return $this;
+    }
+
+    /**
+     * Был ли уже в данном скрипте вызов инициации
+     * кеша хранилища.
+     *
+     * @return bool
+     */
+    protected function wasInitStorageFired(): bool
+    {
+        return $this->init_storage_fired;
+    }
+
+    /**
+     * Insert all entity rows to cache repository by cache driver
+     * and populate items property.
+     *
+     * @param null $repository
+     * @param bool $refresh_repository_cache
+     *
+     * @return $this
+     * @throws \Exception
+     */
+    public function initStorage($repository = null, $refresh_repository_cache = false)
+    {
+        $this->setItems([]);
+
+        $class = $this->getRepositoryClass();
+        /** @var $repository AbstractCachebleRepository */
+        if (!$repository) $repository = new $class(['limit' => $this->getFetchingStep()]);
+
+        $this->setIsFromCache(false);
+
+        // if we need to refresh - delete cache anyway
+        if ($refresh_repository_cache)
+            $this->clearStorage($repository);
+
+        // if rows were found - set it to items
+        if ($items = $repository->search()) {
+            // preparing
+            foreach ($items as &$item) {
+                $item = $this->prepareItem($item);
+            }
+
+            $this->setItems($items);
+
+            // if repos is cacheble - set items to cache
+            if ($repository->isCacheble()) {
+                foreach ($items as $item) {
+                    $hash_name = $this->getHashPrefix()
+                        . $repository->getHashPrefix()
+                        . ':' . $this->getItemPrimaryKey($item);
+
+                    $repository
+                        ->setHashName($hash_name)
+                        ->setToCache($item);
+                }
+            }
+        }
+
+        $this->afterInitStorage($repository);
+
+        return $this;
+    }
+
+    /**
+     * Adding storage initiations of related cache.
+     *
+     * @param AbstractCachebleRepository $repository
+     *
      * @return bool
      * @throws \Exception
      */
-    public function refreshItem(array $params)
+    protected function afterInitStorage(AbstractCachebleRepository $repository): bool
     {
-        $class = $this->getRepositoryClass();
-        /** @var $repository AbstractCachebleRepository */
-        $repository = new $class(
-            array_merge($params, ['limit' => 1,])
-        );
+        $this->initCachingFlag($repository);
+        return true;
+    }
 
-        if ($repository->isCacheble() && $items = $repository->search()) {
-            $item = $items[0];
-            $hash_name = $repository->getHashName(true, false) . ':' . $item->getPrimaryKey();
-            $repository->setHashName($hash_name);
-            $repository->setToCache($item);
-
-            // если элементы уже сохранены в объекте
-            // то обновляем в нем наш элемент
-            if ($this->getItems()) {
-                // среди элементов наш уже есть - обновляем
-                if ($this->getItemByHash(md5($item->getPrimaryKey()))) {
-                    $this->getItems()[$this->getHashValue(md5($item->getPrimaryKey()))] = $item;
-                }
-            }
+    /**
+     * Init cache flag, which says that cache for this
+     * repository has already been initiated and don't need
+     * to call initStorage().
+     *
+     * @param AbstractCachebleRepository $repository
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    protected function initCachingFlag(AbstractCachebleRepository $repository): bool
+    {
+        if ($this->getItems()) {
+            $repository
+                ->setCacheDuration($repository->getCacheDuration() - 600)
+                ->setHashName(
+                    $this->getHashPrefix()
+                    . $repository->getHashPrefix()
+                    . $this->caching_postfix
+                )
+                ->setToCache(1)
+                ->setCacheDuration($repository->getCacheDuration() + 600);
         }
 
         return true;
     }
 
     /**
-     * Иницилизация данных в Хранилище / Кеш.
-     * Может переопределяться в наследнике.
-     * По умолчанию каждый элемент сохраняется отдельно.
+     * Preparing item before caching.
+     * For example in this method we can create
+     * DTO or Aggregation from item.
      *
-     * @param null $repository
-     * @param bool $refresh
-     *
+     * @param $item
      * @return mixed
-     * @throws \Exception
      */
-    public function initStorage($repository = null, $refresh = false)
+    public function prepareItem($item)
     {
-        if ($this->items && !$refresh) {
-            $this->setIsFromCache(true);
-            return $this->items;
-        }
-
-        $class = $this->getRepositoryClass();
-        /** @var $repository AbstractCachebleRepository */
-        if (!$repository) $repository =  new $class(['limit' => 1000]);
-
-        $this->setIsFromCache(false);
-
-        if ($items = $repository->search()) {
-            if ($repository->isCacheble()) {
-                foreach ($items as $item) {
-                    $hash_name = $repository->getHashName(true, false) . ':' . $item->getPrimaryKey();
-                    $repository->setHashName($hash_name);
-                    $repository->setToCache($item);
-                }
-            }
-        }
-
-        return $this->items = $items ?? [];
+        return $item;
     }
 
+    /**
+     * Delete all entity cache from storage
+     *
+     * @param null $repository
+     * @param array $params
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    public function clearStorage($repository = null, array $params = [])
+    {
+        /** @var $repository AbstractCachebleRepository */
+        if (!$repository)
+            $repository = $this->getRepository($params);
+
+        $repository
+            ->setHashName(
+                $this->getHashPrefix()
+                . $repository->getHashPrefix()
+                . ':*'
+            )
+            ->deleteFromCache();
+
+        $this->addingStorageClear($repository);
+
+        return true;
+    }
 
     /**
-     * Получить все кешированные элементы.
+     * Adding storage clear of related cache.
+     *
+     * @param AbstractCachebleRepository $repository
+     *
+     * @return bool
+     */
+    protected function addingStorageClear(AbstractCachebleRepository $repository): bool
+    {
+        return true;
+    }
+
+    /**
+     * Refresh item by params throw cache driver
+     * and in static::items
+     *
+     * @param array $params
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    public function refreshItem(array $params)
+    {
+        /** @var $repository AbstractCachebleRepository */
+        $repository = $this->getRepository(array_merge($params, ['limit' => 1,]));
+
+        if (($items = $repository->search())
+            && $repository->isCacheble()
+        ) {
+            $item = $items[0];
+
+            $hash_name = $this->getHashPrefix()
+                . $repository->getHashPrefix()
+                . ':' . $this->getItemPrimaryKey($item);
+            // если объект уже есть - перепишется, если нет - сохранится
+            $repository
+                ->setHashName($hash_name)
+                ->setToCache($this->prepareItem($item));
+
+            // если элементы уже сохранены в данном объекте сервисе
+            // то обновляем/вставляем в нем наш элемент
+            if ($this->getItems()) $this->addItem($item);
+        } else {
+            $this->clearStorage();
+        }
+
+        return true;
+    }
+
+    /**
+     * Get all elements from cache.
      *
      * @param array $params
      * @param bool $cache_to флаг кешировать ли результат
@@ -166,56 +439,32 @@ abstract class AbstractCachebleService extends AbstractService
     {
         if ($this->items) return $this->items;
 
-        $class = $this->getRepositoryClass();
         /** @var $repository AbstractCachebleRepository */
-        $repository =  new $class($params);
-        if (!$repository instanceof AbstractCachebleRepository)
-            throw new \RuntimeException("Репозиторий должен наследовать класс AbstractCachebleRepository");
+        $repository = $this->getRepository($params);
 
-        $repository->setCache($cache_to);
-        $repository->getHashName(true, false);
+        $repository
+            ->setActiveCache($cache_to)
+            ->getHashName(true, false);
 
         $this->setIsFromCache(true);
 
         $items = [];
         // если в сервисе разрешено использования кеширования - пытаемся получить из кеша
-        if ($this->isUseCache()) $items = $repository->getFromCache(false, $this->get_from_cache_params);
+        if ($this->isUseCache())
+            $items = $repository->getFromCache(false, $this->cache_params);
 
-        if (!$this->items = $items) $this->initStorage();
+        if (!$this->items = $items) {
+            $this->cacheNotExistsEvent();
+            $this->setIsFromCache(false);
+            $this->items = $repository->search();
+        }
+        
         if ($this->items) {
             $this->items = $this->sort($this->items);
             $this->updateHashtable();
         }
 
-        return $this->items;
-    }
-
-    public function getHashByItem($item)
-    {
-        return md5($item->getPrimaryKey());
-    }
-
-    protected function updateHashtable()
-    {
-        if ($this->getItems()) {
-            $this->hashtable = [];
-            foreach ($this->getItems() as $key => $item) {
-                $this->hashtable[$this->getHashByItem($item)] = $key;
-            }
-        }
-
-        return true;
-    }
-
-    protected function sort(array $items)
-    {
-        if ($this->sorting) {
-            foreach ($this->sorting as $key => $direction) {
-                ArrayHelper::multisort($items, $key, $direction);
-            }
-        }
-
-        return $items;
+        return $this->items ?? [];
     }
 
     public function getByExp(array $attributes)
@@ -224,6 +473,7 @@ abstract class AbstractCachebleService extends AbstractService
         if ($items = $this->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
+                    if (!$this->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
                     if (preg_match("#$value#iu", $item->$name) == false) {
                         continue 2;
@@ -231,7 +481,7 @@ abstract class AbstractCachebleService extends AbstractService
                 }
                 $result[] = $item;
             }
-            // пересортировываем результат
+            // resort results
             $result = $this->sort($result);
         }
 
@@ -244,12 +494,13 @@ abstract class AbstractCachebleService extends AbstractService
         if ($items = $this->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
+                    if (!$this->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
                     if ($item->$name !== $value) continue 2;
                 }
                 $result[] = $item;
             }
-            // пересортировываем результат
+            // resort results
             $result = $this->sort($result);
         }
 
@@ -258,11 +509,10 @@ abstract class AbstractCachebleService extends AbstractService
 
     public function getBy(array $attributes)
     {
-        /** @var ActiveRecord $item */
         if ($items = $this->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
-                    if (!$item->hasAttribute($name)) continue 2;
+                    if (!$this->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
                     if ($item->$name !== $value) continue 2;
                 }
@@ -277,9 +527,10 @@ abstract class AbstractCachebleService extends AbstractService
     {
         if ($items = $this->getList()) {
             foreach ($items as $item) {
-                if ($item->getPrimaryKey() == $id) {
+                if ($this->getItemPrimaryKey($item) == $id) {
                     if ($attributes) {
                         foreach ($attributes as $name => $value) {
+                            if (!$this->hasItemAttribute($item, $name)) continue 2;
                             if ($value === false || is_null($value)) continue;
                             if ($item->$name != $value) continue 2;
                         }
@@ -303,37 +554,6 @@ abstract class AbstractCachebleService extends AbstractService
         }
 
         return $result;
-    }
-
-    public function getByName(string $name, array $attributes = [])
-    {
-        $attributes = array_merge($attributes, ['name' => $name]);
-        return $this->getBy($attributes) ?? null;
-    }
-
-    public function getByCode(string $code, array $attributes = [])
-    {
-        $attributes = array_merge($attributes, ['code' => $code]);
-        return $this->getBy($attributes) ?? null;
-    }
-
-    public function getByKeyword(string $keyword, array $attributes = [])
-    {
-        $attributes = array_merge($attributes, ['keyword' => $keyword]);
-        return $this->getBy($attributes) ?? null;
-    }
-
-    /**
-     * Кеширование сущности по ID.
-     * Если сущность уже есть в кеше - заменяем на актуальную.
-     * Если нету - заносим актуальную.
-     *
-     * @param int $id
-     * @return mixed|void
-     */
-    public function initById(int $id) :bool
-    {
-        return true;
     }
 }
 

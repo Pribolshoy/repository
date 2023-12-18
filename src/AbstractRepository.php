@@ -59,15 +59,17 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     public array $items = [];
 
-    /**
-     * @var int Количество выбранных items
-     */
-    protected ?int $total = 0;
+    protected ?int $total_count = null;
 
     /**
      * @var boolean Нужно ли получать количество всех строк
      */
     public bool $need_total = true;
+
+    /**
+     * @var boolean Должна ли быть выборка массива
+     */
+    protected bool $is_array = false;
 
     public function __construct(array $params = [], ?string $model_class = null)
     {
@@ -99,14 +101,58 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
+     * @param int|null $total_count
+     * @return $this
+     */
+    public function setTotalCount(?int $total_count): self
+    {
+        $this->total_count = $total_count;
+        return $this;
+    }
+
+    /**
+     * @return int|null
+     */
+    public function getTotalCount(): ?int
+    {
+        return $this->total_count;
+    }
+
+    /**
+     * Установка флага - выборка элементов как массив.
+     * Для возможности использования текучего интерфейса.
+     *
+     * @param $is_array
+     * @return $this
+     */
+    public function setIsArray($is_array): self
+    {
+        $this->is_array = $is_array;
+        return $this;
+    }
+
+    /**
+     * Получение значения выборки в виде массива
+     * @return bool
+     */
+    public function getIsArray(): bool
+    {
+        return $this->is_array;
+    }
+
+
+    /**
      * @param array $params
      * @param bool $update_filter
      * @param bool $clear_filter
      *
      * @return $this
      */
-    public function setParams(array $params, bool $update_filter = false, bool $clear_filter = false): object
-    {
+    public function setParams(
+        array $params,
+        bool $update_filter = false,
+        bool $clear_filter = false
+    ): object {
         $this->params = $params;
         if ($clear_filter) $this->filter = [];
         if ($update_filter) $this->collectFilter();
@@ -129,10 +175,14 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
+     * @param bool $refresh flag that we need to refresh
+     *                      query object from previous conditions.
      * @return bool|mixed
      */
-    public function search()
+    public function search(bool $refresh = true)
     {
+        if ($refresh) $this->makeQueryBuilder();
+
         $this->beforeFetch();
         $this->fetch();
         $this->afterFetch();
@@ -146,6 +196,20 @@ abstract class AbstractRepository implements RepositoryInterface
      * @return $this
      */
     abstract protected function makeQueryBuilder();
+
+    /**
+     * Get object for query building.
+     *
+     * @return object
+     */
+    public function getQueryBuilder()
+    {
+        if (!$this->model) {
+            $this->makeQueryBuilder();
+        }
+
+        return $this->model;
+    }
 
     /**
      * Actions before the search.
@@ -206,7 +270,7 @@ abstract class AbstractRepository implements RepositoryInterface
      * Gets table name from entity or other way.
      * @return string
      */
-    abstract protected function getTableName() :string;
+    abstract public function getTableName() :string;
 
     /**
      * Standart filter collecting from params, which may be

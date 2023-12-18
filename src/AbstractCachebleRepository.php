@@ -16,23 +16,26 @@ abstract class AbstractCachebleRepository extends AbstractRepository
 {
     use CatalogTrait;
 
+    /**
+     * Get driver using for cache repository.
+     * Default Redis
+     * @var string
+     */
+    protected ?string $driver = 'redis';
+
     protected ?string $driver_path = '';
+
+    protected array $driver_params = [];
 
     protected ?CacheDriverInterface $driver_instance = null;
 
     /**
-     * Активно ли кеширование.
-     * Т.е. нужно ли кешировать элементы
+     * Is active caching.
+     * If we don't need caching of some entity
+     * we can disable this attr in entity class.
      * @var bool
      */
     protected bool $active_cache = true;
-
-    /**
-     * Название компонтента используемого
-     * для кеширования результата
-     * @var string
-     */
-    protected ?string $driver = 'redis';
 
     /**
      * Название ключа по которому будет кешириваться результат
@@ -40,15 +43,13 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     protected ?string $hash_name = null;
 
     /**
-     * Длительность кеширования - 24 часа по умолчанию
-     * Сделал 3 часа.
-     * Может переопределяться в наследнике
+     * Cache durability.
+     * Default 3 hours
      */
-    protected int $cache_duration = 10801;
+    protected int $cache_duration = 10800;
 
     /**
-     * Максимальный номер страницы пагинации
-     * который кешируется
+     * Max numbers of page to cache in catalog.
      * @var integer
      */
     protected int $max_cached_page = 4;
@@ -72,11 +73,36 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Возможно ли кешировать этот результат.
-     * Т.к. не каждый результат целесообразно кешировать
-     * делаем отдельный метод с проверками.
+     * @return array
+     */
+    public function getDriverParams(): array
+    {
+
+        return $this->driver_params;
+    }
+
+    /**
+     * Get driver using for cache repository.
+     * Default Redis
      *
-     * Переопределяет родителя.
+     * @return mixed
+     * @throws \Exception
+     */
+    protected function getDriver()
+    {
+        if ($this->driver_instance) return $this->driver_instance;
+
+        if ($this->driver) {
+            $class = $this->driver_path . ucfirst($this->driver) . 'Driver';
+            if (class_exists($class)) {
+                return $this->driver_instance = new $class($this->getDriverParams());
+            }
+        }
+        throw new \Exception('Driver is not defined or not valid');
+    }
+
+    /**
+     * Assertion the we can cache actual results.
      *
      * @return bool
      */
@@ -91,43 +117,19 @@ abstract class AbstractCachebleRepository extends AbstractRepository
         return false;
     }
 
-    /**
-     * Получение объекта хранилища
-     * Может переопределяться в наследнике.
-     * По умолчанию используется Redis
-     *
-     * @return mixed
-     * @throws \Exception
-     */
-    protected function getDriver()
-    {
-        if ($this->driver_instance) return $this->driver_instance;
-
-        if ($this->driver) {
-            $class = $this->driver_path . ucfirst($this->driver) . 'Driver';
-            if (class_exists($class)) {
-                return $this->driver_instance = new $class();
-            }
-        }
-        throw new \Exception('Не определен или не валидный Драйвер');
-    }
 
     /**
-     * Установка разрешения кеширования
-     *
      * @param bool $activate
      *
      * @return $this
      */
-    public function setCache(bool $activate = true)
+    public function setActiveCache(bool $activate = true)
     {
         $this->active_cache = $activate;
         return $this;
     }
 
     /**
-     * Флаг активно ли кеширование.
-     *
      * @return bool
      */
     public function isCacheActive(): bool
@@ -135,6 +137,10 @@ abstract class AbstractCachebleRepository extends AbstractRepository
         return $this->active_cache;
     }
 
+    /**
+     * @param int $duration
+     * @return $this
+     */
     public function setCacheDuration(int $duration)
     {
         $this->cache_duration = $duration;
@@ -142,12 +148,27 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Получение продолжительности кеширования
      * @return int
      */
-    public function getCacheDuratuion(): int
+    public function getCacheDuration(): int
     {
         return $this->cache_duration;
+    }
+
+    /**
+     * @return string
+     */
+    public function getHashPrefix(): string
+    {
+        return $this->getTableName();
+    }
+
+    /**
+     * @return string
+     */
+    public function getTotalHashPrefix(): string
+    {
+        return 'total_' . $this->getHashPrefix();
     }
 
     /**
@@ -164,7 +185,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Получить наименование кеша.
+     * Get hash name for cache.
      *
      * @param bool $refresh
      * @param bool $use_params
@@ -178,12 +199,15 @@ abstract class AbstractCachebleRepository extends AbstractRepository
         if ($this->hash_name && !$refresh) {
             return $this->hash_name;
         } else {
-            $hash_name = $this->getTableName();
-            if ($use_params && $this->filter) {
-                // таблица
+            $hash_name = $this->getHashPrefix();
+            if ($use_params && $this->getFilters()) {
                 $hash_name = $hash_name . ':' . $this->getHashFromArray($this->getFilters());
             }
-            if ($save_to) $this->hash_name = $hash_name = trim($hash_name, '&');
+
+            $hash_name = trim($hash_name, '&');
+
+            if ($save_to)
+                $this->hash_name = $hash_name;
         }
 
         return $hash_name ?? '';
@@ -195,13 +219,21 @@ abstract class AbstractCachebleRepository extends AbstractRepository
      * @param mixed $data данные для кеширования
      * @param array $params
      *
-     * @return $this|array
+     * @return $this
      * @throws \Exception
      */
-    public function setToCache($data, array $params = [])
+    public function setToCache($data, array $params = []): self
     {
-        if (!$this->getHashName()) return [];
-        $this->getDriver()->set($this->getHashName(), $data, $this->getCacheDuratuion(), $params);
+        if (!$this->getHashName()) return $this;
+
+        $this->getDriver()
+            ->set(
+                $this->getHashName(),
+                $data,
+                $this->getCacheDuration(),
+                $params
+            );
+
         return $this;
     }
 
@@ -217,7 +249,8 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     public function getFromCache(bool $refresh = false, array $params = [])
     {
         if (!$this->getHashName($refresh)) return [];
-        return $this->getDriver()->get($this->getHashName(), $params) ?? [];
+        return $this->getDriver()
+                ->get($this->getHashName(), $params) ?? [];
     }
 
     /**
@@ -230,11 +263,13 @@ abstract class AbstractCachebleRepository extends AbstractRepository
      */
     public function deleteFromCache(array $params = [])
     {
-        return $this->getDriver()->delete($this->getHashName(), $params) ?? [];
+        return $this->getDriver()
+                ->delete($this->getHashName(), $params) ?? [];
     }
 
     /**
-     * Get string hash from array
+     * Get string hash from array.
+     * Hash is using for caching.
      *
      * @param array $data
      * @param bool $hashToMd5
