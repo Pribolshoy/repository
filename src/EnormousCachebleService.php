@@ -2,29 +2,31 @@
 
 namespace pribolshoy\repository;
 
-use pribolshoy\repository\AbstractCachebleService;
+use pribolshoy\repository\filters\EnormousServiceFilter;
+use pribolshoy\repository\interfaces\EnormousServiceInterface;
 
 /**
  * Class EnormousCachebleService
  *
- * Обертка над CommonEntityService предоставляющая функционал
- * для работы с сущностями имеющими более 1000 строк в таблице.
+ * Implements logic of processing entities with enormous rows count,
+ * usually more than 1000.
  *
- * В кеш отправляется также все содержимое таблицы,
- * но некоторые методы недоступны, т.к. загружать в память
- * тысячи сущностей для фильтрации слишком накладно.
- * Поэтому данный вид сервисов предназначен больше для вытаскивания
- * немногочисленных строк из кеша по ID.
+ * It put in storage all rows, with desired filtering by repository.
+ * Also this service put in cache alias hash table.
  *
- * @package app\services
+ * In this service we don't have getList method, we just take rows
+ * by its ID or Alias.
  */
-abstract class EnormousCachebleService extends AbstractCachebleService
+abstract class EnormousCachebleService extends AbstractCachebleService implements EnormousServiceInterface
 {
+    protected string $filter_class = EnormousServiceFilter::class;
+
     protected int $max_init_iteration = 10;
 
     /**
      * How much times was ran method
      * initStorage() recursively
+     *
      * @var int
      */
     protected ?int $init_iteration = null;
@@ -37,11 +39,13 @@ abstract class EnormousCachebleService extends AbstractCachebleService
 
     protected string $alias_attribute = '';
 
-    protected array $cache_params = [
+    public array $cache_params = [
         'strategy' => 'getValue'
     ];
 
     /**
+     * Getter of max_init_iteration
+     *
      * @return int
      */
     public function getMaxInitIteration(): int
@@ -50,16 +54,21 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
-     * @param int $init_iteration
+     * Setter of init_iteration
+     *
+     * @param  int $init_iteration
+     *
      * @return $this
      */
-    public function setInitIteration(?int $init_iteration): self
+    public function setInitIteration(?int $init_iteration): object
     {
         $this->init_iteration = $init_iteration;
         return $this;
     }
 
     /**
+     * Getter of init_iteration
+     *
      * @return int
      */
     public function getInitIteration(): ?int
@@ -68,10 +77,13 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
-     * @param bool|null $is_fetching
+     * Setter of is_fetching
+     *
+     * @param  bool $is_fetching
+     *
      * @return EnormousCachebleService
      */
-    public function setIsFetching(bool $is_fetching): self
+    public function setIsFetching(bool $is_fetching): object
     {
         $this->is_fetching = $is_fetching;
         return $this;
@@ -86,11 +98,13 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
+     * Setter of alias_postfix
+     *
      * @param string $alias_postfix
      *
      * @return EnormousCachebleService
      */
-    public function setAliasPostfix(string $alias_postfix): self
+    public function setAliasPostfix(string $alias_postfix): object
     {
         $this->alias_postfix = $alias_postfix;
 
@@ -98,6 +112,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
+     * Getter of alias_postfix
+     *
      * @return string
      */
     public function getAliasPostfix(): string
@@ -122,80 +138,47 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
-     * Get item value that will be used as key in alias cache.
-     *
-     * @param $item
-     *
-     * @return mixed
-     * @throws \Exception
-     */
-    protected function getItemAliasValue($item)
-    {
-        return $this->getItemAttribute($item, $this->getAliasAttribute());
-    }
-
-    /**
      * Get primary key from alias hash table.
      *
-     * @param string $alias
+     * @param string                          $alias
      * @param AbstractCachebleRepository|null $repository
      *
      * @return mixed
      * @throws \Exception
      */
-    protected function getPrimaryKeyByAlias(string $alias, ?AbstractCachebleRepository $repository = null)
-    {
-        /** @var AbstractCachebleRepository $repository */
-        if (!$repository) $repository = $this->getRepository();
-
-        $fetch_from_repository = false;
-
-        if ($this->isUseCache()) {
-            $alias_hash = $this->getHashPrefix()
-                . $repository->getHashPrefix()
-                . $this->getAliasPostfix()
-                . ':' . $alias;
-
-            $primaryKey = $repository
-                ->setHashName($alias_hash)
-                ->getFromCache();
-
-            // if primary key not found - checks if cache exists
-            if (!$primaryKey) {
-                if ($repository->isCacheble()
-                    && !$this->isCacheExists($repository)
-                ) {
-                    $this->cacheNotExistsEvent();
-                    $fetch_from_repository = true;
-                } else if (!$repository->isCacheble()) {
-                    $fetch_from_repository = true;
-                }
-            }
-
-        } else {
-            $fetch_from_repository = true;
-        }
-
-        if ($fetch_from_repository) {
-            // get primary key throw repository
-            // because cache intiation may by sends to queue
-            $items = $repository
-                ->setParams([$this->getAliasAttribute() => $alias], true, true)
-                ->search();
-
-            if ($item = $items[0] ?? null) {
-                $primaryKey = $this->getItemPrimaryKey($item);
-            }
-        }
-
-        return $primaryKey;
+    public function getPrimaryKeyByAlias(
+        string $alias,
+        ?AbstractCachebleRepository $repository = null
+    ) {
+        /** @var EnormousServiceFilter $filter */
+        $filter = $this->getFilter();
+        return $filter
+                ->getPrimaryKeyByAlias($alias, $repository) ?? null;
     }
 
     /**
-     * @param null $repository
-     * @param bool $refresh_repository_cache
+     * Get item by alias throw alias hash table.
      *
-     * @return $this|\pribolshoy\repository\AbstractCachebleService
+     * @param string $alias
+     * @param array  $attributes
+     *
+     * @return array|mixed
+     * @throws \Exception
+     */
+    public function getByAlias(string $alias, array $attributes = [])
+    {
+        /** @var EnormousServiceFilter $filter */
+        $filter = $this->getFilter();
+        return $filter
+                ->getByAlias($alias, $attributes) ?? null;
+    }
+
+    /**
+     *
+     * @param null $repository
+     * @param bool $refresh_repository_cache ignored
+     *
+     * @return $this|AbstractCachebleService
      * @throws \Exception
      */
     public function initStorage($repository = null, $refresh_repository_cache = false)
@@ -204,25 +187,26 @@ abstract class EnormousCachebleService extends AbstractCachebleService
 
         // null mean that it first run of this method
         if (is_null($this->getInitIteration())) {
-            $this->setInitIteration(0);
+            // at the first run - clear repository anyway
+            $this->clearStorage($repository);
+            $this->setInitIteration(1);
             $fetched_items = 0;
         } else {
             $this->setInitIteration($this->getInitIteration()+1);
-            $fetched_items = $this->getInitIteration() * $this->getFetchingStep();
+            $fetched_items = ($this->getInitIteration()-1) * $this->getFetchingStep();
         }
 
         /** @var $repository AbstractCachebleRepository */
-        if (!$repository)
-            $repository = $this->getRepository([
+        if (!$repository) {
+            $repository = $this->getRepository(
+                [
                 'limit'     => $this->getFetchingStep(),
-                'offset'    => $this->getInitIteration() * $this->getFetchingStep(),
-            ]);
+                'offset'    => ($this->getInitIteration()-1) * $this->getFetchingStep(),
+                ]
+            );
+        }
 
         $this->setIsFromCache(false);
-
-        // if we need to refresh - delete cache anyway
-        if ($refresh_repository_cache)
-            $this->clearStorage($repository);
 
         // if rows were found - set it to items
         if ($items = $repository->search()) {
@@ -255,46 +239,42 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
+     * Event for storage initiation.
+     * Better to prefer run storage initiation
+     * by it, and not by initStorage().
+     * Because storage initiation can contain
+     * some important complex logic before initStorage().
+     *
      * @return bool
      *
      * @throws \Exception
      */
-    protected function cacheNotExistsEvent(): bool
+    public function initStorageEvent(): bool
     {
-        // call first time init storage event by parent
-        if (parent::cacheNotExistsEvent()
-            && $this->isFetching()
-        ) {
-            for ($i = 0; $i < $this->max_init_iteration; $i++) {
-                $this->initStorageEvent();
-                if (!$this->isFetching()) {
-                    $this->setInitIteration(null);
-                    break;
-                }
-            }
-        } else {
-            $this->setInitIteration(null);
+        if ($this->wasInitStorageFired()) {
+            return false;
         }
 
-        return true;
-    }
+        $this->initStorageFired();
+        $this->setIsFetching(true);
 
-    /**
-     * @return bool
-     *
-     * @throws \Exception
-     */
-    protected function initStorageEvent(): bool
-    {
-        $this->initStorage(
-            null,
-            is_null($this->getInitIteration()) ? true : false
-        );
+        // doing initiation in cycle
+        for (
+            $i = 0;
+            $i <= $this->getMaxInitIteration() && $this->isFetching();
+            $i++
+        ) {
+            $this->initStorage();
+        }
+
+        $this->setInitIteration(null);
+
         return true;
     }
 
     /**
      * Adding actions after initStorage().
+     * For children.
      *
      * @param AbstractCachebleRepository $repository
      *
@@ -305,6 +285,28 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     {
         parent::afterInitStorage($repository);
         $this->initAliasCache($repository);
+        return true;
+    }
+
+    /**
+     * @param AbstractCachebleRepository $repository
+     *
+     * @return bool
+     * @throws \Exception
+     */
+    protected function afterStorageClear(AbstractCachebleRepository $repository): bool
+    {
+        parent::afterStorageClear($repository);
+
+        // always clear alias cache
+        $repository
+            ->setHashName(
+                $this->getHashPrefix()
+                . $repository->getHashPrefix()
+                . $this->getAliasPostfix()
+            )
+            ->deleteFromCache();
+
         return true;
     }
 
@@ -340,160 +342,15 @@ abstract class EnormousCachebleService extends AbstractCachebleService
     }
 
     /**
-     * Get item by alias throw alias hash table.
+     * Get item value that will be used as key in alias cache.
      *
-     * @param string $alias
-     * @param array $attributes
+     * @param $item
      *
-     * @return array|mixed
+     * @return mixed
      * @throws \Exception
      */
-    public function getByAlias(string $alias, array $attributes = [])
+    protected function getItemAliasValue($item)
     {
-        /** @var AbstractCachebleRepository $repository */
-        $primaryKey = $this->getPrimaryKeyByAlias(
-            $alias,
-            $repository = $this->getRepository()
-        );
-
-        if ($primaryKey) {
-            $fetch_from_repository = false;
-
-            if ($this->isUseCache()) {
-                $item = $repository
-                    ->setHashName(
-                        $this->getHashPrefix()
-                        . $repository->getHashPrefix()
-                        . ':' . $primaryKey
-                    )
-                    ->getFromCache();
-
-                if (!$item) {
-                    if ($repository->isCacheble()
-                        && !$this->isCacheExists()
-                    ) {
-                        $this->cacheNotExistsEvent();
-                        $fetch_from_repository = true;
-                    } else if (!$repository->isCacheble()) {
-                        $fetch_from_repository = true;
-                    }
-                }
-            } else {
-                $fetch_from_repository = true;
-            }
-
-            if ($fetch_from_repository) {
-                // get primary key throw repository
-                // because cache intiation may by sends to queue
-                $items = $repository
-                    ->setParams(['id' => $primaryKey], true, true)
-                    ->search();
-
-                if ($item = $items[0] ?? null) {
-                    $item = $this->prepareItem($item);
-                    $item = $this->filterByAttributes($item, $attributes);
-                }
-            }
-        }
-
-        return $item ?? [];
+        return $this->getItemAttribute($item, $this->getAliasAttribute());
     }
-
-    protected function filterByAttributes($item, array $attributes)
-    {
-        $result = [];
-
-        if ($attributes) {
-            foreach ($attributes as $name => $value) {
-                if (is_string($value)) $value = [$value];
-
-                $attribute = $this->getItemAttribute($item, $name);
-
-                if (!$attribute
-                    || !in_array($attribute, $value)
-                ) {
-                    continue;
-                }
-
-                $result = $item;
-            }
-        } else {
-            $result = $item;
-        }
-
-        return $result;
-    }
-
-    public function getList(array $params = [], bool $cache_to = true): ?array
-    {
-        throw new \Exception('Method getList() in EnormousCachebleService is not realized!');
-    }
-
-    public function getByExp(array $attributes)
-    {
-        throw new \Exception('Method getByExp() in EnormousCachebleService is not realized!');
-    }
-
-    public function getByMulti(array $attributes)
-    {
-        throw new \Exception('Method getByMulti() in EnormousCachebleService is not realized!');
-    }
-
-    public function getBy(array $attributes)
-    {
-        throw new \Exception('Method getBy() in EnormousCachebleService is not realized!');
-    }
-
-    public function getById(int $id, array $attributes = [])
-    {
-        $item = $this->getByIds([$id], $attributes);
-
-        return $item[0] ?? [];
-    }
-
-    /**
-     *
-     * @param array $ids
-     * @param array $attributes
-     *
-     * @return array
-     * @throws \Exception
-     */
-    public function getByIds(array $ids, array $attributes = [])
-    {
-        /** @var AbstractCachebleRepository $repository */
-        $repository = $this->getRepository();
-        $params = array_merge($this->cache_params, ['fields' => $ids]);
-
-        $fetch_from_repository = false;
-        
-        if ($this->isUseCache()) {
-            $items = $repository
-                ->setHashName($this->getHashPrefix() . $repository->getHashPrefix())
-                ->getFromCache(false, $params);
-
-            // if cache not exists - do init storage for all items
-            if (!$items) {
-                if ($repository->isCacheble()
-                    && !$this->isCacheExists($repository)
-                ) {
-                    $this->cacheNotExistsEvent();
-                    $fetch_from_repository = true;
-                } else if (!$repository->isCacheble()) {
-                    $fetch_from_repository = true;
-                }
-            }
-        } else {
-            $fetch_from_repository = true;
-        }
-
-        if ($fetch_from_repository) {
-            $items = $repository
-                ->setParams(['ids' => $ids], true, true)
-                ->search();
-        }
-
-        return $items ?? [];
-    }
-
 }

@@ -1,6 +1,6 @@
 <?php
 
-namespace pribolshoy\exceptions;
+namespace pribolshoy\repository\exceptions;
 
 class ServiceException extends \Exception
 {

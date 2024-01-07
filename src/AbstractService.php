@@ -2,7 +2,10 @@
 
 namespace pribolshoy\repository;
 
-use pribolshoy\repository\interfaces\EntityServiceInterface;
+use pribolshoy\repository\exceptions\ServiceException;
+use pribolshoy\repository\filters\AbstractFilter;
+use pribolshoy\repository\filters\ServiceFilter;
+use pribolshoy\repository\interfaces\ServiceInterface;
 
 /**
  * Class AbstractEntityService
@@ -12,7 +15,7 @@ use pribolshoy\repository\interfaces\EntityServiceInterface;
  *
  * @package app\repositories
  */
-abstract class AbstractService implements EntityServiceInterface
+abstract class AbstractService implements ServiceInterface
 {
     /**
      * Elements queried by repository
@@ -44,6 +47,10 @@ abstract class AbstractService implements EntityServiceInterface
      */
     protected ?string $repository_class = "";
 
+    protected ?AbstractFilter $filter = null;
+
+    protected string $filter_class = ServiceFilter::class;
+
     /**
      * AbstractService constructor.
      */
@@ -54,17 +61,23 @@ abstract class AbstractService implements EntityServiceInterface
 
     protected function init() {}
 
+    /**
+     * Get repository class.
+     *
+     * @return string|null
+     *
+     * @throws ServiceException
+     */
     protected function getRepositoryClass()
     {
         if (!$this->repository_class) {
-            //            throw new ServiceException('Не задан атрибут repository_class');
-            throw new \Exception('Не задан атрибут repository_class');
+             throw new ServiceException('Не задан атрибут repository_class');
         } else if (class_exists($this->repository_class)) {
             return $this->repository_class;
         } else if (class_exists($this->repository_path . $this->repository_class)) {
             return $this->repository_path . $this->repository_class;
         } else {
-            throw new \Exception('Repository class not found: ' . $this->repository_class ?? 'empty');
+            throw new ServiceException('Repository class not found: ' . $this->repository_class ?? 'empty');
         }
     }
 
@@ -78,6 +91,14 @@ abstract class AbstractService implements EntityServiceInterface
         return $this;
     }
 
+    /**
+     * Get repository object.
+     *
+     * @param array $params
+     *
+     * @return object
+     * @throws ServiceException
+     */
     public function getRepository(array $params = []): object
     {
         $class = $this->getRepositoryClass();
@@ -85,11 +106,45 @@ abstract class AbstractService implements EntityServiceInterface
         $repository =  new $class($params);
 
         if (!$repository instanceof AbstractRepository)
-            throw new \RuntimeException("Репозиторий должен наследовать класс AbstractRepository");
+            throw new ServiceException("Репозиторий должен наследовать класс AbstractRepository");
 
         return $repository;
     }
 
+    /**
+     * @param string $filter_class
+     *
+     * @return object
+     */
+    public function setFilterClass(string $filter_class): object
+    {
+        $this->filter_class = $filter_class;
+        return $this;
+    }
+
+    /**
+     * @param bool $refresh
+     *
+     * @return AbstractFilter
+     */
+    public function getFilter(bool $refresh = false): AbstractFilter
+    {
+        if (!$this->filter || $refresh) {
+            $class = $this->filter_class;
+            $this->filter = new $class($this);
+        }
+
+        return $this->filter;
+    }
+
+    public function getList(array $params = [], bool $cache_to = true) : ?array
+    {
+        return $this->getFilter()->getList($params, $cache_to);
+    }
+
+    /**
+     * @return array
+     */
     public function getItems()
     {
         return $this->items;
@@ -97,6 +152,7 @@ abstract class AbstractService implements EntityServiceInterface
 
     /**
      * @param array $items
+     *
      * @return AbstractService
      */
     public function setItems(array $items)
@@ -106,8 +162,11 @@ abstract class AbstractService implements EntityServiceInterface
     }
 
     /**
+     * Append item to items.
+     *
      * @param $item
      * @param bool $replace_if_exists
+     *
      * @return bool
      */
     public function addItem($item, bool $replace_if_exists = true)
@@ -144,7 +203,7 @@ abstract class AbstractService implements EntityServiceInterface
      *
      * @return array
      */
-    protected function collectItemsPrimaryKeys(array $items): array
+    public function collectItemsPrimaryKeys(array $items): array
     {
         $result = [];
         foreach ($items as $item) {
@@ -154,6 +213,14 @@ abstract class AbstractService implements EntityServiceInterface
         return $result;
     }
 
+    /**
+     * Collecting items value
+     *
+     * @param array $items
+     * @param string $name name of item attribute to collect
+     *
+     * @return array
+     */
     protected function collectItemsValue(array $items, string $name): array
     {
         $result = [];
@@ -182,7 +249,7 @@ abstract class AbstractService implements EntityServiceInterface
      *
      * @return bool
      */
-    protected function updateHashtable()
+    public function updateHashtable()
     {
         if ($items = $this->getItems()) {
             $this->hashtable = [];
@@ -194,6 +261,9 @@ abstract class AbstractService implements EntityServiceInterface
         return true;
     }
 
+    /**
+     * @return array
+     */
     public function getHashtable()
     {
         return $this->hashtable;
@@ -244,6 +314,65 @@ abstract class AbstractService implements EntityServiceInterface
         return $this;
     }
 
-    abstract protected function sort(array $items);
+    abstract public function sort(array $items);
+
+
+
+    /**
+     * @param array $attributes
+     *
+     * @return array
+     * @throws \Exception
+     */
+    public function getByExp(array $attributes)
+    {
+        return $this->getFilter()->getByExp($attributes) ?? [];
+    }
+
+    /**
+     * @param array $attributes
+     *
+     * @return array
+     * @throws \Exception
+     */
+    public function getByMulti(array $attributes)
+    {
+        return $this->getFilter()->getByMulti($attributes) ?? [];
+    }
+
+    /**
+     * @param array $attributes
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function getBy(array $attributes)
+    {
+        return $this->getFilter()->getBy($attributes) ?? [];
+    }
+
+    /**
+     * @param int $id
+     * @param array $attributes
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function getById(int $id, array $attributes = [])
+    {
+        return $this->getFilter()->getById($id, $attributes) ?? [];
+    }
+
+    /**
+     * @param array $ids
+     * @param array $attributes
+     *
+     * @return array
+     * @throws \Exception
+     */
+    public function getByIds(array $ids, array $attributes = [])
+    {
+        return $this->getFilter()->getByIds($ids, $attributes) ?? [];
+    }
 }
 
