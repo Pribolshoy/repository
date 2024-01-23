@@ -35,9 +35,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
 
     protected string $hash_prefix = 'detail_';
 
-    protected string $alias_postfix = '_alias';
-
-    protected string $alias_attribute = '';
+    protected bool $use_alias_cache = true;
 
     public array $cache_params = [
         'strategy' => 'getValue'
@@ -98,82 +96,6 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
     }
 
     /**
-     * Setter of alias_postfix
-     *
-     * @param string $alias_postfix
-     *
-     * @return EnormousCachebleService
-     */
-    public function setAliasPostfix(string $alias_postfix): object
-    {
-        $this->alias_postfix = $alias_postfix;
-
-        return $this;
-    }
-
-    /**
-     * Getter of alias_postfix
-     *
-     * @return string
-     */
-    public function getAliasPostfix(): string
-    {
-        return $this->alias_postfix;
-    }
-
-    /**
-     * Get item attribute name which will used as key
-     * in alias hash table.
-     *
-     * @return string
-     * @throws \Exception
-     */
-    public function getAliasAttribute(): string
-    {
-        if (!$this->alias_attribute) {
-            throw new \Exception('Name of item attribute for alias is not set');
-        }
-
-        return $this->alias_attribute;
-    }
-
-    /**
-     * Get primary key from alias hash table.
-     *
-     * @param string                          $alias
-     * @param AbstractCachebleRepository|null $repository
-     *
-     * @return mixed
-     * @throws \Exception
-     */
-    public function getPrimaryKeyByAlias(
-        string $alias,
-        ?AbstractCachebleRepository $repository = null
-    ) {
-        /** @var EnormousServiceFilter $filter */
-        $filter = $this->getFilter();
-        return $filter
-                ->getPrimaryKeyByAlias($alias, $repository) ?? null;
-    }
-
-    /**
-     * Get item by alias throw alias hash table.
-     *
-     * @param string $alias
-     * @param array  $attributes
-     *
-     * @return array|mixed
-     * @throws \Exception
-     */
-    public function getByAlias(string $alias, array $attributes = [])
-    {
-        /** @var EnormousServiceFilter $filter */
-        $filter = $this->getFilter();
-        return $filter
-                ->getByAlias($alias, $attributes) ?? null;
-    }
-
-    /**
      *
      * @param null $repository
      * @param bool $refresh_repository_cache ignored
@@ -200,8 +122,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
         if (!$repository) {
             $repository = $this->getRepository(
                 [
-                'limit'     => $this->getFetchingStep(),
-                'offset'    => ($this->getInitIteration()-1) * $this->getFetchingStep(),
+                    'limit'     => $this->getFetchingStep(),
+                    'offset'    => ($this->getInitIteration()-1) * $this->getFetchingStep(),
                 ]
             );
         }
@@ -272,85 +194,4 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
         return true;
     }
 
-    /**
-     * Adding actions after initStorage().
-     * For children.
-     *
-     * @param AbstractCachebleRepository $repository
-     *
-     * @return bool
-     * @throws \Exception
-     */
-    protected function afterInitStorage(AbstractCachebleRepository $repository): bool
-    {
-        parent::afterInitStorage($repository);
-        $this->initAliasCache($repository);
-        return true;
-    }
-
-    /**
-     * @param AbstractCachebleRepository $repository
-     *
-     * @return bool
-     * @throws \Exception
-     */
-    protected function afterStorageClear(AbstractCachebleRepository $repository): bool
-    {
-        parent::afterStorageClear($repository);
-
-        // always clear alias cache
-        $repository
-            ->setHashName(
-                $this->getHashPrefix()
-                . $repository->getHashPrefix()
-                . $this->getAliasPostfix()
-            )
-            ->deleteFromCache();
-
-        return true;
-    }
-
-    /**
-     * Init to cache alias hash table, which we will use
-     * for searching item primary key.
-     *
-     * @param AbstractCachebleRepository $repository
-     *
-     * @return bool
-     * @throws \Exception
-     */
-    protected function initAliasCache(AbstractCachebleRepository $repository): bool
-    {
-        if ($items = $this->getItems()) {
-            // initiation of alias cache
-            if ($repository->isCacheble()) {
-                foreach ($items as $item) {
-                    $hash_name = $this->getHashPrefix()
-                        . $repository->getHashPrefix()
-                        . $this->getAliasPostfix()
-                        . ':' . $this->getItemAliasValue($item);
-
-                    $repository
-                        ->setHashName($hash_name)
-                        ->setToCache($this->getItemPrimaryKey($item));
-                }
-            }
-            $items = null;
-        }
-
-        return true;
-    }
-
-    /**
-     * Get item value that will be used as key in alias cache.
-     *
-     * @param $item
-     *
-     * @return mixed
-     * @throws \Exception
-     */
-    protected function getItemAliasValue($item)
-    {
-        return $this->getItemAttribute($item, $this->getAliasAttribute());
-    }
 }

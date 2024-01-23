@@ -6,9 +6,8 @@ use pribolshoy\repository\AbstractCachebleRepository;
 use pribolshoy\repository\AbstractService;
 
 /**
- * Class AbstractEntityService
+ * Class EnormousServiceFilter
  *
- * @package app\repositories
  */
 class EnormousServiceFilter extends AbstractFilter
 {
@@ -117,7 +116,11 @@ class EnormousServiceFilter extends AbstractFilter
                 // get primary key by repository
                 // because cache intiation may by sends to queue
                 $items = $repository
-                    ->setParams(['id' => $primaryKey], true, true)
+                    ->setParams(
+                        ['id' => $primaryKey], // TODO: заменить id на primaryKey
+                        true,
+                        true
+                    )
                     ->search();
 
                 if ($item = $items[0] ?? null) {

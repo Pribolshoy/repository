@@ -2,16 +2,40 @@
 
 namespace pribolshoy\repository\filters;
 
+use pribolshoy\repository\interfaces\RepositoryInterface;
+use pribolshoy\repository\interfaces\ServiceInterface;
+
 /**
- * Class AbstractEntityService
+ * Class ServiceFilter
  *
- * @package app\repositories
  */
 class ServiceFilter extends AbstractFilter
 {
+    /**
+     * @param array $params
+     * @param bool $cache_to not use
+     *
+     * @return array|null
+     */
     public function getList(array $params = [], bool $cache_to = true): ?array
     {
-        return $this->getService()->getItems();
+        /** @var $service ServiceInterface */
+        $service = $this->getService();
+
+        if (!is_null($service->getItems())) {
+            $items = $service->getItems();
+        } else {
+            /** @var $repository RepositoryInterface */
+            $repository = $service->getRepository($params);
+            $items = $repository->search();
+        }
+
+        if (!is_null($items)) {
+            $service->setItems($service->sort($items));
+            $service->updateHashtable();
+        }
+
+        return $service->getItems() ?? [];
     }
 
     /**
@@ -28,7 +52,7 @@ class ServiceFilter extends AbstractFilter
                 foreach ($attributes as $name => $value) {
                     if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
-                    if (preg_match("#$value#iu", $item->$name) == false) {
+                    if (preg_match("#$value#iu", $this->getService()->getItemAttribute($item, $name)) == false) {
                         continue 2;
                     }
                 }
@@ -55,7 +79,7 @@ class ServiceFilter extends AbstractFilter
                 foreach ($attributes as $name => $value) {
                     if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
-                    if ($item->$name !== $value) continue 2;
+                    if ($this->getService()->getItemAttribute($item, $name) !== $value) continue 2;
                 }
                 $result[] = $item;
             }
@@ -79,7 +103,7 @@ class ServiceFilter extends AbstractFilter
                 foreach ($attributes as $name => $value) {
                     if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
-                    if ($item->$name !== $value) continue 2;
+                    if ($this->getService()->getItemAttribute($item, $name) !== $value) continue 2;
                 }
                 return $item;
             }
@@ -105,7 +129,7 @@ class ServiceFilter extends AbstractFilter
                         foreach ($attributes as $name => $value) {
                             if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                             if ($value === false || is_null($value)) continue;
-                            if ($item->$name != $value) continue 2;
+                            if ($this->getService()->getItemAttribute($item, $name) != $value) continue 2;
                         }
                     }
                     return $item;

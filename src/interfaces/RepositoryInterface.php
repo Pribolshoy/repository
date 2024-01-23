@@ -17,14 +17,14 @@ interface RepositoryInterface
     public function setParams(array $params, bool $update_filter = false, bool $clear_filter = false): object;
 
     /**
-     * Get params property
+     * Get params property.
      *
      * @return array
      */
     public function getParams(): array;
 
     /**
-     * Get filter property
+     * Get filter property.
      *
      * @return array
      */
@@ -33,15 +33,14 @@ interface RepositoryInterface
     public function getFilter(string $name);
 
     /**
-     * Run search
+     * Run search.
      *
      * @return bool|mixed
      */
     public function search();
 
     /**
-     * Получение модели/сущности через которую репозиторий
-     * будет вытаскивать информацию.
+     * Gets object by which repository will fetch rows.
      *
      * @return object
      */

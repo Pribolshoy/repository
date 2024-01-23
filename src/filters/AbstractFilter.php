@@ -8,7 +8,6 @@ use pribolshoy\repository\EnormousCachebleService;
 /**
  * Class AbstractFilter
  *
- * @package app\repositories
  */
 abstract class AbstractFilter
 {

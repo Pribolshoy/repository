@@ -5,45 +5,61 @@ namespace pribolshoy\repository;
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\AbstractFilter;
 use pribolshoy\repository\filters\ServiceFilter;
+use pribolshoy\repository\interfaces\RepositoryInterface;
 use pribolshoy\repository\interfaces\ServiceInterface;
 
 /**
  * Class AbstractEntityService
  *
  * Abstract class for realization of service object
- * by which we can using Repositoriess.
+ * by which we can using Repositories.
  *
- * @package app\repositories
  */
 abstract class AbstractService implements ServiceInterface
 {
     /**
-     * Elements queried by repository
-     * @var array
+     * Either primary key contains all keys in
+     * $primaryKeys property or the first existing.
+     * @var bool
      */
-    protected array $items = [];
+    protected bool $multiplePrimaryKey = true;
 
     /**
+     * Names of items properties which we can call
+     * primary keys.
+     * @var array
+     */
+    protected array $primaryKeys = [
+        'id',
+    ];
+
+    /**
+     * Elements fetched by repository.
+     * @var array
+     */
+    protected ?array $items = null;
+
+    /**
+     *
      * @var array
      */
     protected array $hashtable = [];
 
-
     /**
-     * @var array Сортировка элементов. Может переопределяться
+     * Sorting in items.
+     * @var array
      */
     protected array $sorting = ['name' => SORT_ASC];
 
     /**
-     * @var string namespace где хранятся репозитории.
+     * Namespace of dir with repositories classes.
+     * @var string
      */
     protected ?string $repository_path = "";
 
     /**
-     *
-     * @var string namespace класса репозитория.
-     * Нужен для создания репозитрия через который
-     * сервис будет получать и кешировать элементы.
+     * Name or namespace of repository class.
+     * @var string
      */
     protected ?string $repository_class = "";
 
@@ -62,6 +78,25 @@ abstract class AbstractService implements ServiceInterface
     protected function init() {}
 
     /**
+     * @return bool
+     */
+    public function isMultiplePrimaryKey(): bool
+    {
+        return $this->multiplePrimaryKey;
+    }
+
+    /**
+     * @param array $primaryKeys
+     *
+     * @return $this
+     */
+    public function setPrimaryKeys(array $primaryKeys): object
+    {
+        $this->primaryKeys = $primaryKeys;
+        return $this;
+    }
+
+    /**
      * Get repository class.
      *
      * @return string|null
@@ -71,7 +106,7 @@ abstract class AbstractService implements ServiceInterface
     protected function getRepositoryClass()
     {
         if (!$this->repository_class) {
-             throw new ServiceException('Не задан атрибут repository_class');
+            throw new ServiceException('Не задан атрибут repository_class');
         } else if (class_exists($this->repository_class)) {
             return $this->repository_class;
         } else if (class_exists($this->repository_path . $this->repository_class)) {
@@ -83,6 +118,7 @@ abstract class AbstractService implements ServiceInterface
 
     /**
      * @param string $repository_class
+     *
      * @return object
      */
     public function setRepositoryClass(string $repository_class): object
@@ -102,11 +138,11 @@ abstract class AbstractService implements ServiceInterface
     public function getRepository(array $params = []): object
     {
         $class = $this->getRepositoryClass();
-        /** @var $repository AbstractRepository */
+        /** @var $repository RepositoryInterface */
         $repository =  new $class($params);
 
-        if (!$repository instanceof AbstractRepository)
-            throw new ServiceException("Репозиторий должен наследовать класс AbstractRepository");
+        if (!$repository instanceof RepositoryInterface)
+            throw new ServiceException("Repository must implement RepositoryInterface");
 
         return $repository;
     }
@@ -137,6 +173,13 @@ abstract class AbstractService implements ServiceInterface
         return $this->filter;
     }
 
+    /**
+     * @param array $params
+     * @param bool $cache_to
+     *
+     * @return array|null
+     * @throws \Exception
+     */
     public function getList(array $params = [], bool $cache_to = true) : ?array
     {
         return $this->getFilter()->getList($params, $cache_to);
@@ -172,7 +215,7 @@ abstract class AbstractService implements ServiceInterface
     public function addItem($item, bool $replace_if_exists = true)
     {
         if ($this->getItems()) {
-            if ($item_key = $this->getHashValue($this->getHashByItem($item))
+            if ($item_key = $this->getHashtableValue($this->getHashByItem($item))
                 && $replace_if_exists) {
                 $this->items[$item_key] = $item;
             } else if (!$item_key) {
@@ -186,18 +229,75 @@ abstract class AbstractService implements ServiceInterface
     }
 
     /**
-     * Need child realization
+     * TODO: move all interactions with items to object Items or so
+     * Get primary key from item.
+     * It can be multiple.
      *
      * @return mixed
      */
-    abstract public function getItemPrimaryKey($item);
+    public function getItemPrimaryKey($item)
+    {
+        $primaryKey = '';
 
-    abstract public function hasItemAttribute($item, string $name) :bool;
+        foreach ($this->primaryKeys as $name) {
+            if ($value = $this->getItemAttribute($item, $name)) {
+                $primaryKey .= $value;
 
-    abstract public function getItemAttribute($item, string $name);
+                if (!$this->isMultiplePrimaryKey()) {
+                    return $primaryKey;
+                }
+            }
+        }
+
+        return $primaryKey;
+    }
 
     /**
-     * Return array if items primary keys.
+     * Check if item has given attribute.
+     * Can be realized in child.
+     *
+     * @param $item
+     * @param string $name
+     *
+     * @return bool
+     */
+    public function hasItemAttribute($item, string $name): bool
+    {
+        if (is_array($item)) {
+            return array_key_exists($name, $item);
+        } elseif (is_object($item)) {
+            return isset($item->$name);
+        }
+
+        return false;
+    }
+
+    /**
+     * Get attribute value from item.
+     * Can be realized in child.
+     *
+     * @param $item
+     * @param string $name
+     *
+     * @return mixed
+     */
+    public function getItemAttribute($item, string $name)
+    {
+        if (!$this->hasItemAttribute($item, $name)) {
+            return null;
+        }
+
+        if (is_array($item)) {
+            $result = $item[$name];
+        } elseif (is_object($item)) {
+            $result = $item->$name;
+        }
+
+        return $result ?? null;
+    }
+
+    /**
+     * Collects item's primary keys in array.
      *
      * @param array $items
      *
@@ -214,7 +314,7 @@ abstract class AbstractService implements ServiceInterface
     }
 
     /**
-     * Collecting items value
+     * Collects certain item's value in array.
      *
      * @param array $items
      * @param string $name name of item attribute to collect
@@ -225,7 +325,7 @@ abstract class AbstractService implements ServiceInterface
     {
         $result = [];
         foreach ($items as $item) {
-            if ($value = $item[$name]) {
+            if ($value = $this->getItemAttribute($item, $name)) {
                 $result[] = $value;
             }
         }
@@ -234,6 +334,7 @@ abstract class AbstractService implements ServiceInterface
     }
 
     /**
+     * TODO: move realization in object Hasher
      * Get hash by item using its primary key.
      *
      * @param $item
@@ -247,9 +348,9 @@ abstract class AbstractService implements ServiceInterface
     /**
      * Update hashtable. Make new from actual items.
      *
-     * @return bool
+     * @return $this
      */
-    public function updateHashtable()
+    public function updateHashtable() :object
     {
         if ($items = $this->getItems()) {
             $this->hashtable = [];
@@ -258,7 +359,7 @@ abstract class AbstractService implements ServiceInterface
             }
         }
 
-        return true;
+        return $this;
     }
 
     /**
@@ -276,7 +377,7 @@ abstract class AbstractService implements ServiceInterface
      * @param string $hash
      * @return mixed|null
      */
-    public function getHashValue(string $hash)
+    public function getHashtableValue(string $hash)
     {
         $hashtable = $this->getHashtable();
 
@@ -289,18 +390,42 @@ abstract class AbstractService implements ServiceInterface
     }
 
     /**
-     * Get item by hash value
+     * Get item by hash value.
      *
-     * @param string $hash
+     * @param string $hash hash value for searching
+     *                     among hashtable keys.
      * @return mixed|null
      */
     public function getItemByHash(string $hash)
     {
-        if ($key = $this->getHashValue($hash)
+        if (($key = $this->getHashtableValue($hash))
             && $this->getItems()
         ) {
             return $this->getItems()[$key] ?? null;
         }
+        return null;
+    }
+
+    /**
+     * TODO: move realization in object Hashtable
+     * Get one item by hashtable.
+     *
+     * @param $itemWithPrimaryKeys array or object with primary keys
+     *                             which are used for hashtable keys.
+     *
+     * @return mixed|null
+     * @throws \Exception
+     */
+    public function getByHashtable($itemWithPrimaryKeys)
+    {
+        if (is_null($this->getItems())) {
+            $this->getList();
+        }
+
+        if ($this->getItems()) {
+            return $this->getItemByHash($this->getHashByItem($itemWithPrimaryKeys));
+        }
+
         return null;
     }
 
@@ -314,9 +439,23 @@ abstract class AbstractService implements ServiceInterface
         return $this;
     }
 
-    abstract public function sort(array $items);
+    /**
+     * Process of items sorting.
+     * Must be realized in child
+     *
+     * @param array $items
+     *
+     * @return mixed
+     */
+    abstract public function sort(array $items): array;
 
-
+    public function resort(): object
+    {
+        if ($items = $this->getItems()) {
+            $this->setItems($this->sort($items));
+        }
+        return $this;
+    }
 
     /**
      * @param array $attributes

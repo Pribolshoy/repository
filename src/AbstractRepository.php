@@ -2,7 +2,7 @@
 
 namespace pribolshoy\repository;
 
-use pribolshoy\exceptions\RepositoryException;
+use pribolshoy\repository\exceptions\RepositoryException;
 use pribolshoy\repository\interfaces\RepositoryInterface;
 
 /**
