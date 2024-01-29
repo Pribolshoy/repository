@@ -2,7 +2,7 @@
 
 namespace pribolshoy\repository\interfaces;
 
-interface EnormousServiceInterface
+interface EnormousServiceInterface extends CachebleServiceInterface
 {
     public function getMaxInitIteration(): int;
 

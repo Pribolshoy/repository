@@ -5,6 +5,7 @@ namespace pribolshoy\repository;
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\AbstractFilter;
 use pribolshoy\repository\filters\ServiceFilter;
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
 use pribolshoy\repository\interfaces\ServiceInterface;
 
@@ -99,14 +100,14 @@ abstract class AbstractService implements ServiceInterface
     /**
      * Get repository class.
      *
-     * @return string|null
+     * @return string
      *
      * @throws ServiceException
      */
     protected function getRepositoryClass()
     {
         if (!$this->repository_class) {
-            throw new ServiceException('Не задан атрибут repository_class');
+            throw new ServiceException('Property repository_class is not set');
         } else if (class_exists($this->repository_class)) {
             return $this->repository_class;
         } else if (class_exists($this->repository_path . $this->repository_class)) {
@@ -132,7 +133,7 @@ abstract class AbstractService implements ServiceInterface
      *
      * @param array $params
      *
-     * @return object
+     * @return RepositoryInterface|CachebleRepositoryInterface
      * @throws ServiceException
      */
     public function getRepository(array $params = []): object
@@ -210,22 +211,24 @@ abstract class AbstractService implements ServiceInterface
      * @param $item
      * @param bool $replace_if_exists
      *
-     * @return bool
+     * @return $this
      */
-    public function addItem($item, bool $replace_if_exists = true)
+    public function addItem($item, bool $replace_if_exists = true): object
     {
         if ($this->getItems()) {
-            if ($item_key = $this->getHashtableValue($this->getHashByItem($item))
+            // item exists in items and we should to replace it
+            if (($item_key = $this->getHashtableValue($this->getHashByItem($item)))
                 && $replace_if_exists) {
                 $this->items[$item_key] = $item;
             } else if (!$item_key) {
+                // item don't exists in items yet
                 $this->items[] = $item;
             }
         } else {
             $this->setItems([$item]);
         }
 
-        return true;
+        return $this;
     }
 
     /**
@@ -342,7 +345,11 @@ abstract class AbstractService implements ServiceInterface
      */
     public function getHashByItem($item)
     {
-        return md5($this->getItemPrimaryKey($item));
+        if (!$key = $this->getItemPrimaryKey($item)) {
+            $key = serialize($item);
+        }
+
+        return md5($key);
     }
 
     /**

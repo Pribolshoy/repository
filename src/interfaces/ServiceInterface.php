@@ -18,7 +18,7 @@ interface ServiceInterface
 
     public function setItems(array $items);
 
-    public function addItem($item, bool $replace_if_exists = true);
+    public function addItem($item, bool $replace_if_exists = true) : object;
 
     public function updateHashtable();
 

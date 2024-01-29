@@ -17,7 +17,7 @@ abstract class AbstractRepository implements RepositoryInterface
     /**
      * Lazy loading of connections
      *
-     * @var boolean Lazy загрузка - связи не подгружаются при выборке.
+     * @var boolean Lazy load of connections.
      */
     public bool $lazy_load = false;
 
@@ -62,12 +62,16 @@ abstract class AbstractRepository implements RepositoryInterface
     protected ?int $total_count = null;
 
     /**
-     * @var boolean Нужно ли получать количество всех строк
+     * Should we get info about total count of entities.
+     *
+     * @var boolean
      */
     public bool $need_total = true;
 
     /**
-     * @var boolean Должна ли быть выборка массива
+     * Should we fetch results as array.
+     *
+     * @var boolean
      */
     protected bool $is_array = false;
 
@@ -81,8 +85,8 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
-     * Установка значения выборки в виде массива
      * @param $need_total
+     *
      * @return $this
      */
     public function setNeedTotal($need_total)
@@ -92,7 +96,6 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
-     * Получение значения выборки всего количества элементов
      * @return bool
      */
     public function getNeedTotal(): bool
@@ -119,10 +122,8 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
-     * Установка флага - выборка элементов как массив.
-     * Для возможности использования текучего интерфейса.
-     *
      * @param $is_array
+     *
      * @return $this
      */
     public function setIsArray($is_array): self
@@ -132,7 +133,6 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
-     * Получение значения выборки в виде массива
      * @return bool
      */
     public function getIsArray(): bool
@@ -238,7 +238,7 @@ abstract class AbstractRepository implements RepositoryInterface
     protected function afterFetch() {return $this;}
 
     /**
-     * Configuration of entity connections with other entitiesю
+     * Configuration of entity connections with other entities.
      *
      * return $this
      */

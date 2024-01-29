@@ -4,7 +4,9 @@ namespace pribolshoy\repository;
 
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\CachebleServiceFilter;
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
+use pribolshoy\repository\interfaces\RepositoryInterface;
 use pribolshoy\repository\traits\CatalogTrait;
 
 /**
@@ -29,23 +31,21 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
 
     /**
-     * Можно ли пытаться получить элементы из
-     * кеша.
+     * Should we try to grt items from cache.
      *
      * @var bool
      */
     protected bool $use_cache = true;
 
     /**
-     * Кешировать ли таблицу с алиасами.
+     * Should we make alias table in cache storage.
      *
      * @var bool
      */
     protected bool $use_alias_cache = false;
 
     /**
-     * Префикс к хешу кеширования.
-     * Нужно для возможности менять его.
+     * Prefix for key of hash table in cache storage.
      *
      * @var string
      */
@@ -58,14 +58,14 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     protected string $caching_postfix = '_caching';
 
     /**
-     * Является ли результат выбранным из кеша
+     * Were items fetched from cache or not.
      *
      * @var bool
      */
     protected bool $is_from_cache = true;
 
     /**
-     * Параметры передающиеся в дравер кеша при выборке
+     * Params for cache driver.
      *
      * @var array
      */
@@ -282,6 +282,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * DTO or Aggregation from item.
      *
      * @param $item
+     *
      * @return mixed
      */
     public function prepareItem($item)
@@ -295,7 +296,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @param string $alias_postfix
      *
-     * @return EnormousCachebleService
+     * @return $this
      */
     public function setAliasPostfix(string $alias_postfix): object
     {
@@ -345,6 +346,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     ) {
         /** @var CachebleServiceFilter $filter */
         $filter = $this->getFilter();
+
         return $filter
                 ->getPrimaryKeyByAlias($alias, $repository) ?? null;
     }
@@ -370,19 +372,18 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * Insert all entity rows to cache repository by cache driver
      * and populate items property.
      *
-     * @param null $repository
+     * @param RepositoryInterface|null $repository
      * @param bool $refresh_repository_cache
      *
      * @return $this
      * @throws \Exception
      */
-    public function initStorage($repository = null, $refresh_repository_cache = false)
+    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false)
     {
         $this->setItems([]);
 
-        $class = $this->getRepositoryClass();
         /** @var $repository AbstractCachebleRepository */
-        if (!$repository) $repository = new $class(['limit' => $this->getFetchingStep()]);
+        if (!$repository) $repository = $this->getRepository(['limit' => $this->getFetchingStep()]);
 
         $this->setIsFromCache(false);
 
@@ -505,13 +506,13 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     /**
      * Delete all entity cache from storage
      *
-     * @param null $repository
+     * @param CachebleRepositoryInterface|null $repository
      * @param array $params
      *
      * @return bool
      * @throws \Exception
      */
-    public function clearStorage($repository = null, array $params = [])
+    public function clearStorage(?CachebleRepositoryInterface $repository = null, array $params = [])
     {
         /** @var $repository AbstractCachebleRepository */
         if (!$repository)
@@ -575,8 +576,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     public function deleteItem(string $primaryKey)
     {
         /** @var $repository AbstractCachebleRepository */
-        if (!$repository)
-            $repository = $this->getRepository();
+        $repository = $this->getRepository();
 
         // delete item
         $repository

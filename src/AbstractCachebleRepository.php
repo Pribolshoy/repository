@@ -2,6 +2,7 @@
 
 namespace pribolshoy\repository;
 
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CacheDriverInterface;
 use pribolshoy\repository\traits\CatalogTrait;
 
@@ -12,7 +13,7 @@ use pribolshoy\repository\traits\CatalogTrait;
  *
  * @package app\repositories
  */
-abstract class AbstractCachebleRepository extends AbstractRepository
+abstract class AbstractCachebleRepository extends AbstractRepository implements CachebleRepositoryInterface
 {
     use CatalogTrait;
 
@@ -38,7 +39,8 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     protected bool $active_cache = true;
 
     /**
-     * Название ключа по которому будет кешириваться результат
+     * Hash key from caching of items.
+     * @var string|null
      */
     protected ?string $hash_name = null;
 
@@ -123,7 +125,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository
      *
      * @return $this
      */
-    public function setActiveCache(bool $activate = true)
+    public function setActiveCache(bool $activate = true): object
     {
         $this->active_cache = $activate;
         return $this;
@@ -172,8 +174,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Устанавливает название имени по которому
-     * будет кешириваться результат
+     * Set hash_name property
      *
      * @param string $hash_name
      * @return static
@@ -195,7 +196,6 @@ abstract class AbstractCachebleRepository extends AbstractRepository
      */
     public function getHashName(bool $refresh = false, bool $use_params = true, bool $save_to = true) :string
     {
-        // если он уже задан и нет флага "обновить"
         if ($this->hash_name && !$refresh) {
             return $this->hash_name;
         } else {
@@ -214,9 +214,9 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Кешировать данные через заданный драйвер
+     * Insert data to cache storage.
      *
-     * @param mixed $data данные для кеширования
+     * @param mixed $data data
      * @param array $params
      *
      * @return $this
@@ -238,7 +238,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Получить кешированные данные
+     * Get data from cache storage.
      *
      * @param bool $refresh
      * @param array $params
@@ -254,7 +254,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository
     }
 
     /**
-     * Удалить кешированные данные
+     * Delete data in cache storage.
      *
      * @param array $params
      *
@@ -277,8 +277,13 @@ abstract class AbstractCachebleRepository extends AbstractRepository
      */
     public function getHashFromArray(array $data, bool $hashToMd5 = false) :string
     {
-        if ($data) $hash = json_encode(array_diff($data, [null]));
-        if (strlen($hash) > 50 || $hashToMd5) $hash = md5($hash);
+        if ($data) {
+            $hash = json_encode(array_diff($data, [null]));
+
+            if (strlen($hash) > 50 || $hashToMd5) {
+                $hash = md5($hash);
+            }
+        }
 
         return $hash ?? '';
     }

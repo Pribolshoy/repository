@@ -2,8 +2,10 @@
 
 namespace pribolshoy\repository;
 
+use pribolshoy\repository\AbstractCachebleService;
 use pribolshoy\repository\filters\EnormousServiceFilter;
 use pribolshoy\repository\interfaces\EnormousServiceInterface;
+use pribolshoy\repository\interfaces\RepositoryInterface;
 
 /**
  * Class EnormousCachebleService
@@ -54,11 +56,11 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
     /**
      * Setter of init_iteration
      *
-     * @param  int $init_iteration
+     * @param null|int $init_iteration
      *
      * @return $this
      */
-    public function setInitIteration(?int $init_iteration): object
+    public function setInitIteration(?int $init_iteration = null): object
     {
         $this->init_iteration = $init_iteration;
         return $this;
@@ -67,7 +69,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
     /**
      * Getter of init_iteration
      *
-     * @return int
+     * @return int|null
      */
     public function getInitIteration(): ?int
     {
@@ -97,13 +99,13 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
 
     /**
      *
-     * @param null $repository
+     * @param RepositoryInterface|null $repository
      * @param bool $refresh_repository_cache ignored
      *
-     * @return $this|AbstractCachebleService
+     * @return $this
      * @throws \Exception
      */
-    public function initStorage($repository = null, $refresh_repository_cache = false)
+    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false)
     {
         $this->setItems([]);
 
@@ -118,7 +120,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
             $fetched_items = ($this->getInitIteration()-1) * $this->getFetchingStep();
         }
 
-        /** @var $repository AbstractCachebleRepository */
+        /** @var $repository RepositoryInterface */
         if (!$repository) {
             $repository = $this->getRepository(
                 [

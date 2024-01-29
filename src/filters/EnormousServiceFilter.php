@@ -117,7 +117,7 @@ class EnormousServiceFilter extends AbstractFilter
                 // because cache intiation may by sends to queue
                 $items = $repository
                     ->setParams(
-                        ['id' => $primaryKey], // TODO: заменить id на primaryKey
+                        ['id' => $primaryKey], // TODO: replace id by primaryKey
                         true,
                         true
                     )
@@ -190,37 +190,5 @@ class EnormousServiceFilter extends AbstractFilter
         return $primaryKey ?? null;
     }
 
-    /**
-     *
-     *
-     * @param $item
-     * @param array $attributes
-     *
-     * @return array
-     */
-    public function filterByAttributes($item, array $attributes)
-    {
-        $result = [];
-
-        if ($attributes) {
-            foreach ($attributes as $name => $value) {
-                if (is_string($value)) $value = [$value];
-
-                $attribute = $this->getService()->getItemAttribute($item, $name);
-
-                if (!$attribute
-                    || !in_array($attribute, $value)
-                ) {
-                    continue;
-                }
-
-                $result = $item;
-            }
-        } else {
-            $result = $item;
-        }
-
-        return $result;
-    }
 }
 

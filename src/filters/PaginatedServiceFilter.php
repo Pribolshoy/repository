@@ -2,9 +2,8 @@
 
 namespace pribolshoy\repository\filters;
 
-use pribolshoy\repository\AbstractCachebleRepository;
-use pribolshoy\repository\AbstractCachebleService;
-use pribolshoy\repository\AbstractService;
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
+use pribolshoy\repository\interfaces\CachebleServiceInterface;
 
 /**
  * Class PaginatedServiceFilter
@@ -15,19 +14,15 @@ class PaginatedServiceFilter extends AbstractFilter
 {
     public function getList(array $params = [], bool $cache_to = true): ?array
     {
-        /** @var $service AbstractCachebleService */
-        /** @var $repository AbstractCachebleRepository */
+        /** @var $service CachebleServiceInterface */
+        /** @var $repository CachebleRepositoryInterface */
         $service = $this->getService();
         $repository = $service->getRepository($params);
 
-
-
-        // устанавливаем разрешение использованя кеширования репозиторию
         $repository->setActiveCache($cache_to);
 
         $hash = $service->getHashPrefix() . $repository->getHashName();
 
-        // если в сервисе разрешено использования кеширования - пытаемся получить из кеша
         $ids = [];
         if ($service->isUseCache())
             $ids = $repository
@@ -42,11 +37,12 @@ class PaginatedServiceFilter extends AbstractFilter
             $service->setPages($repository->getPages());
 
             if ($repository->isCacheble()) {
+                // ids
                 $repository
                     ->setHashName($hash)
                     ->setToCache($ids);
 
-                // кешируем объект для пагинации
+                // pagination results
                 $repository
                     ->setHashName($service->pagination_prefix . $repository->getHashName())
                     ->setToCache($repository->getPages());

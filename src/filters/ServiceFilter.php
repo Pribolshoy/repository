@@ -50,9 +50,9 @@ class ServiceFilter extends AbstractFilter
         if ($items = $this->getService()->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
-                    if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
-                    if (preg_match("#$value#iu", $this->getService()->getItemAttribute($item, $name)) == false) {
+                    if (is_null($itemAttrValue = $this->getService()->getItemAttribute($item, $name))) continue 2;
+                    if (preg_match("#$value#iu", $itemAttrValue) == false) {
                         continue 2;
                     }
                 }
@@ -77,7 +77,6 @@ class ServiceFilter extends AbstractFilter
         if ($items = $this->getService()->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
-                    if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
                     if ($this->getService()->getItemAttribute($item, $name) !== $value) continue 2;
                 }
@@ -101,7 +100,6 @@ class ServiceFilter extends AbstractFilter
         if ($items = $this->getService()->getList()) {
             foreach ($items as $item) {
                 foreach ($attributes as $name => $value) {
-                    if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                     if ($value === false || is_null($value)) continue;
                     if ($this->getService()->getItemAttribute($item, $name) !== $value) continue 2;
                 }
@@ -121,13 +119,11 @@ class ServiceFilter extends AbstractFilter
      */
     public function getById(int $id, array $attributes = [])
     {
-        //$this->>getService()->getFilter()->getById($id, $attributes);
         if ($items = $this->getService()->getList()) {
             foreach ($items as $item) {
                 if ($this->getService()->getItemPrimaryKey($item) == $id) {
                     if ($attributes) {
                         foreach ($attributes as $name => $value) {
-                            if (!$this->getService()->hasItemAttribute($item, $name)) continue 2;
                             if ($value === false || is_null($value)) continue;
                             if ($this->getService()->getItemAttribute($item, $name) != $value) continue 2;
                         }

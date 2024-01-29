@@ -5,6 +5,8 @@ namespace pribolshoy\repository\interfaces;
 interface RepositoryInterface
 {
 
+    public function getTotalCount(): ?int;
+
     /**
      * Set params property
      *

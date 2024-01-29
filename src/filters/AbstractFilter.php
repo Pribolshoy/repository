@@ -4,6 +4,7 @@ namespace pribolshoy\repository\filters;
 
 use pribolshoy\repository\AbstractService;
 use pribolshoy\repository\EnormousCachebleService;
+use pribolshoy\repository\interfaces\ServiceInterface;
 
 /**
  * Class AbstractFilter
@@ -27,9 +28,9 @@ abstract class AbstractFilter
     }
 
     /**
-     * @return AbstractService|EnormousCachebleService|null
+     * @return ServiceInterface|EnormousCachebleService|null
      */
-    public function getService(): ?AbstractService
+    public function getService(): ?object
     {
         return $this->service;
     }
@@ -94,6 +95,40 @@ abstract class AbstractFilter
     public function getByIds(array $ids, array $attributes = [])
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
+    }
+
+    /**
+     *
+     *
+     * @param $item
+     * @param array $attributes
+     *
+     * @return array
+     */
+    public function filterByAttributes($item, array $attributes)
+    {
+        $result = [];
+
+        if ($attributes) {
+            foreach ($attributes as $name => $value) {
+                if (is_string($value)) $value = [$value];
+
+                $itemAttrValue = $this->getService()
+                    ->getItemAttribute($item, $name);
+
+                if (!$itemAttrValue
+                    || !in_array($itemAttrValue, $value)
+                ) {
+                    continue;
+                }
+
+                $result = $item;
+            }
+        } else {
+            $result = $item;
+        }
+
+        return $result;
     }
 }
 

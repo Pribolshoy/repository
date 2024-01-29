@@ -38,7 +38,7 @@ class CachebleServiceFilter extends ServiceFilter
         $service->setIsFromCache(true);
 
         $items = [];
-        // если в сервисе разрешено использования кеширования - пытаемся получить из кеша
+
         if ($service->isUseCache())
             $items = $repository->getFromCache(false, $service->cache_params);
 
@@ -180,5 +180,6 @@ class CachebleServiceFilter extends ServiceFilter
 
         return $primaryKey ?? null;
     }
+
 }
 
