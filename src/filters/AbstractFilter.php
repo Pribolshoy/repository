@@ -5,34 +5,20 @@ namespace pribolshoy\repository\filters;
 use pribolshoy\repository\AbstractService;
 use pribolshoy\repository\EnormousCachebleService;
 use pribolshoy\repository\interfaces\ServiceInterface;
+use pribolshoy\repository\interfaces\UsedByServiceInterface;
+use pribolshoy\repository\traits\UsedByServiceTrait;
 
 /**
  * Class AbstractFilter
  *
  */
-abstract class AbstractFilter
+abstract class AbstractFilter implements UsedByServiceInterface
 {
-    protected ?AbstractService $service = null;
+    use UsedByServiceTrait;
 
     public function __construct(AbstractService $service)
     {
         $this->service = $service;
-    }
-
-    /**
-     * @param AbstractService|null $service
-     */
-    public function setService(?AbstractService $service): void
-    {
-        $this->service = $service;
-    }
-
-    /**
-     * @return ServiceInterface|EnormousCachebleService|null
-     */
-    public function getService(): ?object
-    {
-        return $this->service;
     }
 
     public function getList(array $params = [], bool $cache_to = true): ?array

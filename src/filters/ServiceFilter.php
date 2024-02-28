@@ -22,17 +22,13 @@ class ServiceFilter extends AbstractFilter
         /** @var $service ServiceInterface */
         $service = $this->getService();
 
-        if (!is_null($service->getItems())) {
-            $items = $service->getItems();
-        } else {
+        if (is_null($service->getItems())) {
             /** @var $repository RepositoryInterface */
             $repository = $service->getRepository($params);
-            $items = $repository->search();
-        }
 
-        if (!is_null($items)) {
-            $service->setItems($service->sort($items));
-            $service->updateHashtable();
+            if ($items = $repository->search()) {
+                $service->setItems($service->sort($items));
+            }
         }
 
         return $service->getItems() ?? [];

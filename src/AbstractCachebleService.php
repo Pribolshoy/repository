@@ -237,7 +237,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
     /**
      * Event will fired when we should to initiate cache.
-     * We can owerride this method in children, for example if
+     * We can override this method in children, for example if
      * we want to initiate cache async in queue.
      *
      * @return bool

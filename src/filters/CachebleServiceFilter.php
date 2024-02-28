@@ -50,7 +50,6 @@ class CachebleServiceFilter extends ServiceFilter
 
         if ($items) {
             $service->setItems($service->sort($items));
-            $service->updateHashtable();
         }
 
         return $service->getItems() ?? [];
