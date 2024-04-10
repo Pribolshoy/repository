@@ -73,16 +73,4 @@ abstract class PaginatedCachebleService extends AbstractCachebleService
 
         return true;
     }
-
-    /**
-     * @param array $ids
-     * @param array $attributes
-     *
-     * @return array
-     * @throws \Exception
-     */
-    public function getByIds(array $ids, array $attributes = [])
-    {
-        throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
-    }
 }

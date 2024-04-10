@@ -10,6 +10,12 @@ interface CachebleServiceInterface extends ServiceInterface
 
     public function setUseCache(bool $use_cache);
 
+    public function useAliasCache(): bool;
+
+    public function setUseAliasCache(bool $use_alias_cache);
+
+    public function getByAliasStructure($value);
+
     public function isCacheExists(?AbstractCachebleRepository $repository = null);
 
     public function initStorageEvent(): bool;
@@ -32,9 +38,16 @@ interface CachebleServiceInterface extends ServiceInterface
 
     public function refreshItem(array $primaryKeyArray);
 
-    public function getById(int $id, array $attributes = []);
+    public function prepareItem($item);
 
-    public function getByIds(array $ids, array $attributes = []);
+    public function setAliasPostfix(string $alias_postfix): object;
+
+    public function getAliasPostfix(): string;
+
+    public function getAliasAttribute(): string;
+
+    public function getByAlias(string $alias, array $attributes = []);
+
 
 }
 

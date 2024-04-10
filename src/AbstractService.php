@@ -86,7 +86,7 @@ abstract class AbstractService extends BaseService implements ServiceInterface
     }
 
     /**
-     * TODO: need?
+     * TODO: need? NO! delete
      * Collects certain item's value in array.
      *
      * @param array $items
@@ -106,9 +106,11 @@ abstract class AbstractService extends BaseService implements ServiceInterface
     }
 
     /**
+     * TODO: delete
      * @deprecated
      *
      * @param $item
+     *
      * @return string
      */
     public function getHashByItem($item)
@@ -117,31 +119,82 @@ abstract class AbstractService extends BaseService implements ServiceInterface
     }
 
     /**
+     * TODO: в Enormous убрать инициацию при пустом getItems()
      * Get one item by hashtable.
      *
-     * @param $itemWithPrimaryKeys array or object with primary keys
+     * @param mixed $key string with key, or array|object with keys
      *                             which are used for hashtable keys.
+     * @param string|null $structureName
      *
-     * @return mixed|null
+     * @return mixed|array
+     * @throws exceptions\ServiceException
      * @throws \Exception
      */
-    public function getByHashtable($itemWithPrimaryKeys)
-    {
+    public function getByHashtable(
+        $key,
+        ?string $structureName = null
+    ) {
         // init items if didn't yet
-        if (is_null($this->getItems())) {
-            $this->getList();
+        if (is_null($items = $this->getItems())) {
+            $items = $this->getList();
         }
 
-        $key = $this->getItemHashtableStructure()
-            ->getByKey($this->getItemHash($itemWithPrimaryKeys));
+        if (!$items) {
+            return [];
+        }
+
+        if ($structureName) {
+            $structure = $this->getNamedStructure($structureName);
+        } else {
+            $structure = $this->getBasicHashtableStructure();
+        }
+
+        // get key for item by hashtable
+        $key = $structure
+            ->getByKey($key);
 
         return $this->getItemStructure()
-            ->getByKey($key);
+            ->getByKey($key) ?? [];
+    }
+
+    /**
+     * @param $keys
+     * @param string|null $structureName
+     *
+     * @return array
+     * @throws exceptions\ServiceException
+     * @throws \Exception
+     */
+    public function getByHashtableMulti(
+        $keys,
+        ?string $structureName = null
+    ) {
+        // init items if didn't yet
+        if (is_null($items = $this->getItems())) {
+            $items = $this->getList();
+        }
+
+        if (!$items) {
+            return [];
+        }
+
+        if ($structureName) {
+            $structure = $this->getNamedStructure($structureName);
+        } else {
+            $structure = $this->getBasicHashtableStructure();
+        }
+
+        // get keys for items by hashtable
+        $keys = $structure
+            ->getByKeys($keys);
+
+        return $this->getItemStructure()
+                ->getByKeys($keys) ?? [];
     }
 
     /**
      * Process of items sorting.
-     * Must be realized in child
+     * Must be realized in child.
      *
      * @param array $items
      *

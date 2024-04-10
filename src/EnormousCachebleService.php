@@ -4,6 +4,7 @@ namespace pribolshoy\repository;
 
 use pribolshoy\repository\AbstractCachebleService;
 use pribolshoy\repository\filters\EnormousServiceFilter;
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\EnormousServiceInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
 
@@ -98,8 +99,53 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
     }
 
     /**
+     * @override
      *
-     * @param RepositoryInterface|null $repository
+     * @param mixed $key string with key, or array|object with keys
+     *                             which are used for hashtable keys.
+     * @param string|null $structureName
+     *
+     * @return mixed|array
+     * @throws exceptions\ServiceException
+     * @throws \Exception
+     */
+    public function getByHashtable(
+        $key,
+        ?string $structureName = null
+    ) {
+        if (!$this->getItems()) {
+            return [];
+        }
+
+        return parent::getByHashtable($key, $structureName);
+    }
+
+    /**
+     * @override
+     * @deprecated
+     *
+     * Method is depricated because of it can give wrong results.
+     * For example, if memory hashtable store not all items,
+     * then it return only some of them.
+     * At the time, all need items can be obtained by other methods.
+     *
+     * @param $keys
+     * @param string|null $structureName
+     *
+     * @return array
+     * @throws exceptions\ServiceException
+     * @throws \Exception
+     */
+    public function getByHashtableMulti(
+        $keys,
+        ?string $structureName = null
+    ) {
+        throw new \Exception('Method ' . __METHOD__ . ' is depricated!');
+    }
+
+    /**
+     *
+     * @param CachebleRepositoryInterface|RepositoryInterface|null $repository
      * @param bool $refresh_repository_cache ignored
      *
      * @return $this
@@ -168,6 +214,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      * by it, and not by initStorage().
      * Because storage initiation can contain
      * some important complex logic before initStorage().
+     *
+     * Synchronous.
      *
      * @return bool
      *

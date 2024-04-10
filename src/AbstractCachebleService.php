@@ -4,9 +4,12 @@ namespace pribolshoy\repository;
 
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\CachebleServiceFilter;
+use pribolshoy\repository\filters\EnormousServiceFilter;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
+use pribolshoy\repository\interfaces\StructureInterface;
+use pribolshoy\repository\structures\HashtableStructure;
 use pribolshoy\repository\traits\CatalogTrait;
 
 /**
@@ -43,6 +46,10 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * @var bool
      */
     protected bool $use_alias_cache = false;
+
+    protected ?HashtableStructure $alias_item_structure = null;
+
+    protected string $alias_item_structure_class = HashtableStructure::class;
 
     /**
      * Prefix for key of hash table in cache storage.
@@ -119,6 +126,71 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
+     * Get Alias hashtable structure object.
+     *
+     * @param bool $refresh
+     *
+     * @return StructureInterface|HashtableStructure
+     * @throws ServiceException
+     * @throws \Exception
+     */
+    protected function getAliasStructure(bool $refresh = false):HashtableStructure
+    {
+        if (is_null($this->alias_item_structure) || $refresh) {
+            $class = $this->alias_item_structure_class;
+
+            if (!$class) {
+                throw new ServiceException('Property alias_item_structure_class is not set');
+            } else if (!class_exists($class)) {
+                throw new ServiceException('Item structure class not found: ' . $this->alias_item_structure_class ?? 'empty');
+            }
+
+            $this->alias_item_structure = new $class($this);
+            $this->alias_item_structure->setKeyName($this->getAliasAttribute());
+            $this->alias_item_structure->setCursorKeys($this->primaryKeys);
+        }
+
+        return $this->alias_item_structure;
+    }
+
+    /**
+     * Get item primary key by alias structure.
+     *
+     * @param string $value value of alias attribute
+     *
+     * @return string|int|null
+     * @throws exceptions\ServiceException
+     * @throws \Exception
+     */
+    public function getByAliasStructure($value)
+    {
+        $structure = $this->getAliasStructure();
+
+        // get key for item/items by hashtable
+        return $structure
+            ->getByKey($value) ?? null;
+    }
+
+    /**
+     * @override
+     *
+     * @return object
+     *
+     * @throws ServiceException
+     */
+    public function updateHashtable() :object
+    {
+        parent::updateHashtable();
+
+        if ($this->useAliasCache()) {
+            $this->getAliasStructure()
+                ->setItems($this->getItems() ?? []);
+        }
+
+        return $this;
+    }
+
+    /**
      * @param string $hash_prefix
      *
      * @return $this
@@ -139,7 +211,6 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
     /**
      * @param string $name
-     *
      * @param array $param
      *
      * @return object
@@ -163,6 +234,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
     /**
      * @param string $name
+     *
      * @return array
      */
     public function getCacheParams(string $name = ''): array
@@ -183,6 +255,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
+     * TODO: make protected
      * @param bool $is_from_cache
      *
      * @return $this
@@ -202,6 +275,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
+     * TODO: make protected
      * @param int $fetching_step
      *
      * @return $this
@@ -362,7 +436,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      */
     public function getByAlias(string $alias, array $attributes = [])
     {
-        /** @var CachebleServiceFilter $filter */
+        /** @var CachebleServiceFilter|EnormousServiceFilter $filter */
         $filter = $this->getFilter();
         return $filter
                 ->getByAlias($alias, $attributes) ?? null;

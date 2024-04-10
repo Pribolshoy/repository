@@ -4,6 +4,7 @@ namespace pribolshoy\repository\filters;
 
 use pribolshoy\repository\AbstractCachebleRepository;
 use pribolshoy\repository\AbstractCachebleService;
+use pribolshoy\repository\interfaces\CachebleServiceInterface;
 
 /**
  * Class CachebleServiceFilter
@@ -66,19 +67,22 @@ class CachebleServiceFilter extends ServiceFilter
      */
     public function getByAlias(string $alias, array $attributes = [])
     {
+        /** @var CachebleServiceInterface $service */
+        $service = $this->getService();
+
         /** @var AbstractCachebleRepository $repository */
         $primaryKey = $this->getPrimaryKeyByAlias(
             $alias,
-            $repository = $this->getService()->getRepository()
+            $repository = $service->getRepository()
         );
 
         if ($primaryKey) {
             $fetch_from_repository = false;
 
-            if ($this->getService()->isUseCache()) {
+            if ($service->isUseCache()) {
                 $item = $repository
                     ->setHashName(
-                        $this->getService()->getHashPrefix()
+                        $service->getHashPrefix()
                         . $repository->getHashPrefix()
                         . ':' . $primaryKey
                     )
@@ -86,9 +90,9 @@ class CachebleServiceFilter extends ServiceFilter
 
                 if (!$item) {
                     if ($repository->isCacheble()
-                        && !$this->getService()->isCacheExists()
+                        && !$service->isCacheExists()
                     ) {
-                        $this->getService()->initStorageEvent();
+                        $service->initStorageEvent();
                         $fetch_from_repository = true;
                     } else if (!$repository->isCacheble()) {
                         $fetch_from_repository = true;
@@ -103,14 +107,14 @@ class CachebleServiceFilter extends ServiceFilter
                 // because cache intiation may by sends to queue
                 $items = $repository
                     ->setParams(
-                        ['id' => $primaryKey],
+                        ['id' => $primaryKey], // TODO: replace id by primaryKey
                         true,
                         true
                     )
                     ->search();
 
                 if ($item = $items[0] ?? null) {
-                    $item = $this->getService()->prepareItem($item);
+                    $item = $service->prepareItem($item);
                     $item = $this->filterByAttributes($item, $attributes);
                 }
             }
@@ -130,15 +134,22 @@ class CachebleServiceFilter extends ServiceFilter
      */
     public function getPrimaryKeyByAlias(string $alias, ?AbstractCachebleRepository $repository = null)
     {
+        /** @var CachebleServiceInterface $service */
+        $service = $this->getService();
+
         /** @var AbstractCachebleRepository $repository */
-        if (!$repository) $repository = $this->getService()->getRepository();
+        if (!$repository) $repository = $service->getRepository();
 
         $fetch_from_repository = false;
 
-        if ($this->getService()->isUseCache()) {
-            $alias_hash = $this->getService()->getHashPrefix()
+        if ($service->getItems()
+            && !is_null($result = $service->getByAliasStructure($alias))
+        ) {
+            $primaryKey = $result;
+        } else if ($service->isUseCache()) {
+            $alias_hash = $service->getHashPrefix()
                 . $repository->getHashPrefix()
-                . $this->getService()->getAliasPostfix()
+                . $service->getAliasPostfix()
                 . ':' . $alias;
 
             $primaryKey = $repository
@@ -148,9 +159,9 @@ class CachebleServiceFilter extends ServiceFilter
             // if primary key not found - checks if cache exists
             if (!$primaryKey) {
                 if ($repository->isCacheble()
-                    && !$this->getService()->isCacheExists($repository)
+                    && !$service->isCacheExists($repository)
                 ) {
-                    $this->getService()->initStorageEvent();
+                    $service->initStorageEvent();
                     $fetch_from_repository = true;
                 } else if (!$repository->isCacheble()) {
                     $fetch_from_repository = true;
@@ -166,14 +177,14 @@ class CachebleServiceFilter extends ServiceFilter
             // because cache intiation may by sends to queue
             $items = $repository
                 ->setParams(
-                    [$this->getService()->getAliasAttribute() => $alias],
+                    [$service->getAliasAttribute() => $alias],
                     true,
                     true
                 )
                 ->search();
 
             if ($item = $items[0] ?? null) {
-                $primaryKey = $this->getService()->getItemPrimaryKey($item);
+                $primaryKey = $service->getItemPrimaryKey($item);
             }
         }
 

@@ -13,7 +13,9 @@ interface BaseServiceInterface
 
     public function getItemStructure(bool $refresh = false):StructureInterface;
 
-    public function getItemHashtableStructure(bool $refresh = false):HashtableStructure;
+    public function getBasicHashtableStructure(bool $refresh = false):HashtableStructure;
+
+    public function getNamedStructures(): array;
 
     public function getRepository(array $params = []): object;
 
@@ -26,6 +28,8 @@ interface BaseServiceInterface
     public function addItem($item, bool $replace_if_exists = true) : object;
 
     public function getItemHash($item);
+
+    public function hash($value) :string;
 
     public function getItemPrimaryKey($item);
 

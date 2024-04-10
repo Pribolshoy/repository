@@ -8,12 +8,12 @@ use pribolshoy\repository\EnormousCachebleService;
 interface UsedByServiceInterface
 {
     /**
-     * @param AbstractService|null $service
+     * @param BaseServiceInterface|ServiceInterface|null $service
      */
     public function setService(?AbstractService $service): void;
 
     /**
-     * @return ServiceInterface|EnormousCachebleService|null
+     * @return BaseServiceInterface|ServiceInterface|EnormousCachebleService|null
      */
     public function getService(): ?object;
 }

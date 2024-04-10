@@ -11,6 +11,7 @@ use pribolshoy\repository\interfaces\RepositoryInterface;
 use pribolshoy\repository\interfaces\ServiceInterface;
 use pribolshoy\repository\interfaces\StructureInterface;
 use pribolshoy\repository\structures\ArrayStructure;
+use pribolshoy\repository\structures\HashtableCollisionStructure;
 use pribolshoy\repository\structures\HashtableStructure;
 
 /**
@@ -51,6 +52,8 @@ abstract class BaseService implements BaseServiceInterface
     protected ?HashtableStructure $hashtable_item_structure = null;
 
     protected string $hashtable_item_structure_class = HashtableStructure::class;
+
+    protected array $adding_structures = [];
 
     /**
      * Namespace of dir with repositories classes.
@@ -99,7 +102,7 @@ abstract class BaseService implements BaseServiceInterface
 
     /**
      * Get Items structure object.
-     *
+     * TODO: make protected
      * @param bool $refresh
      *
      * @return StructureInterface
@@ -124,13 +127,14 @@ abstract class BaseService implements BaseServiceInterface
 
     /**
      * Get Items hashtable structure object.
+     * TODO: make protected
      *
      * @param bool $refresh
      *
      * @return StructureInterface|HashtableStructure
      * @throws ServiceException
      */
-    public function getItemHashtableStructure(bool $refresh = false):HashtableStructure
+    public function getBasicHashtableStructure(bool $refresh = false):HashtableStructure
     {
         if (is_null($this->hashtable_item_structure) || $refresh) {
             $class = $this->hashtable_item_structure_class;
@@ -145,6 +149,46 @@ abstract class BaseService implements BaseServiceInterface
         }
 
         return $this->hashtable_item_structure;
+    }
+
+    /**
+     * @return array
+     */
+    public function getNamedStructures(): array
+    {
+        return $this->adding_structures;
+    }
+
+    /**
+     * @param string $name
+     *
+     * @return StructureInterface|null
+     * @throws ServiceException
+     */
+    public function getNamedStructure(string $name): ?StructureInterface
+    {
+        $structure = $this->adding_structures[$name] ?? null;
+
+        if (is_array($structure)) {
+            $structure = $this->initAddingStructure($structure);
+            $this->insertAddingStructure($name, $structure);
+        }
+
+        return $structure;
+    }
+
+    /**
+     * @param string $name
+     * @param StructureInterface $structure
+     *
+     * @return object
+     */
+    protected function insertAddingStructure(
+        string $name,
+        StructureInterface $structure
+    ): object {
+        $this->adding_structures[$name] = $structure;
+        return $this;
     }
 
     /**
@@ -231,43 +275,76 @@ abstract class BaseService implements BaseServiceInterface
      */
     public function addItem($item, bool $replace_if_exists = true): object
     {
-        if ($this->getItemStructure()->getItems()) {
-            $item_key = $this->getItemHashtableStructure()
-                ->getByKey($this->getItemHash($item));
+        $update = false;
 
-            // if exists and we want to replace
-            if ($item_key && $replace_if_exists) {
+        if ($this->getItems()) {
+            // hashtable_item_structure contains of only unique items
+            $item_key = $this->getBasicHashtableStructure()
+                ->getByKey($item);
+
+            // if item exists and we want to replace it
+            if (!is_null($item_key) && $replace_if_exists) {
                 $this->getItemStructure()
                     ->addItem($item, $item_key);
-            } else if (!$item_key) {
+
+                $update = true;
+            } else if (is_null($item_key)) {
                 // item don't exists in items yet
                 $this->getItemStructure()
                     ->addItem($item);
+                $update = true;
             }
         } else {
             $this->getItemStructure()
                 ->addItem($item);
+            $update = true;
         }
 
-        // always update after adding
-        $this->updateHashtable();
+        if ($update) {
+            // update after adding
+            $this->updateHashtable();
+        }
 
         return $this;
     }
 
     /**
-     * TODO: move realization in object Hasher
      * Get hash by item using its primary key.
      *
      * @param $item
+     *
      * @return string
      */
     public function getItemHash($item)
     {
-        $key = $this->getItemPrimaryKey($item) ?: serialize($item);
-        return md5($key);
+        $key = mb_strlen($primaryKey = $this->getItemPrimaryKey($item))
+            ? $primaryKey
+            : serialize($item);
+
+        return $this->hash($key);
     }
 
+    /**
+     * TODO: move realization in object Hasher
+     * @param $value
+     *
+     * @return string
+     */
+    public function hash($value) :string
+    {
+        return md5($value);
+    }
+
+    /**
+     * TODO: make protected
+     * Must be realized in child because
+     * $item can be specific type object
+     * and have special method for taking primary key.
+     *
+     * @param $item
+     *
+     * @return mixed
+     */
     abstract public function getItemPrimaryKey($item);
 
 
@@ -279,22 +356,53 @@ abstract class BaseService implements BaseServiceInterface
      */
     public function getHashtable()
     {
-        return $this->getItemHashtableStructure()
+        return $this->getBasicHashtableStructure()
             ->getItems();
     }
 
     /**
      * Update hashtable. Make new from actual items.
      *
+     * TODO: make protected???
+     *
      * @return $this
      * @throws exceptions\ServiceException
      */
     public function updateHashtable() :object
     {
-        $this->getItemHashtableStructure()
-            ->setItems($this->getItems());
+        $this->getBasicHashtableStructure()
+            ->setItems($this->getItems() ?? []);
+
+        if ($this->getNamedStructures()) {
+            foreach ($this->getNamedStructures() as $name => $structure) {
+                $structure = $this->getNamedStructure($name);
+                $structure->setItems($this->getItems() ?? []);
+            }
+        }
 
         return $this;
+    }
+
+    /**
+     * @param array $config
+     *
+     * @return StructureInterface
+     * @throws ServiceException
+     */
+    protected function initAddingStructure(array $config):StructureInterface
+    {
+        $class = $config['class'] ?? null;
+        unset($config['class']);
+
+        if (!$class || !class_exists($class)) {
+            throw new ServiceException('Adding item structure class not found: ' . $class ?? 'empty');
+        }
+
+        /** @var StructureInterface $structure */
+        $structure = new $class($this);
+        $structure->addParams($config);
+
+        return $structure;
     }
 
     /**
@@ -325,6 +433,7 @@ abstract class BaseService implements BaseServiceInterface
 
     /**
      * @param array $sorting
+     *
      * @return $this
      */
     public function setSorting(array $sorting): object

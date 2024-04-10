@@ -26,5 +26,10 @@
         "psr-4": {
             "pribolshoy\\repository\\": "src"
         }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "pribolshoy\\repository\\tests\\": "tests"
+        }
     }
 }

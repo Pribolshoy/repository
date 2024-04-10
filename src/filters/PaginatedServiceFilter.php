@@ -23,6 +23,7 @@ class PaginatedServiceFilter extends AbstractFilter
 
         $hash = $service->getHashPrefix() . $repository->getHashName();
 
+        $pages = null;
         $ids = [];
         if ($service->isUseCache())
             $ids = $repository
@@ -34,7 +35,7 @@ class PaginatedServiceFilter extends AbstractFilter
             $ids = $service->collectItemsPrimaryKeys($items);
 
             // get pagination from repository
-            $service->setPages($repository->getPages());
+            $service->setPages($pages = $repository->getPages());
 
             if ($repository->isCacheble()) {
                 // ids
@@ -42,27 +43,45 @@ class PaginatedServiceFilter extends AbstractFilter
                     ->setHashName($hash)
                     ->setToCache($ids);
 
-                // pagination results
-                $repository
-                    ->setHashName($service->pagination_prefix . $repository->getHashName())
-                    ->setToCache($repository->getPages());
+                if ($pages) {
+                    // pagination results
+                    $repository
+                        ->setHashName($service->pagination_prefix . $repository->getHashName())
+                        ->setToCache($repository->getPages());
+                }
             }
         }
 
-        if ($ids) {
-            $items = $service->getByIds($ids);
+        if ($ids && ($items = $service->getByIds($ids))) {
+            $service->setItems($items);
 
-            $pages = $repository
-                ->setHashName($service->pagination_prefix . $repository->getHashName())
-                ->getFromCache(false, $service->cache_params);
+            if (is_null($pages)) {
+                $pages = $repository
+                    ->setHashName($service->pagination_prefix . $repository->getHashName())
+                    ->getFromCache(false, $service->cache_params);
+            }
 
-            if ($pages)
+            if ($pages) {
                 $service->setPages($pages);
+            }
         }
 
-        $service->setItems($items);
-
         return $service->getItems();
+    }
+
+    /**
+     * Filter for paginated service can't get items by ids.
+     * To get items we need use other service type.
+     *
+     * @param array $ids
+     * @param array $attributes
+     *
+     * @return array|void
+     * @throws \Exception
+     */
+    public function getByIds(array $ids, array $attributes = [])
+    {
+        throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }
 }
 

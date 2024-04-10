@@ -111,25 +111,33 @@ class ServiceFilter extends AbstractFilter
      * @param array $attributes
      *
      * @return mixed|null
-     * @throws \Exception
      */
     public function getById(int $id, array $attributes = [])
     {
-        if ($items = $this->getService()->getList()) {
-            foreach ($items as $item) {
-                if ($this->getService()->getItemPrimaryKey($item) == $id) {
-                    if ($attributes) {
-                        foreach ($attributes as $name => $value) {
-                            if ($value === false || is_null($value)) continue;
-                            if ($this->getService()->getItemAttribute($item, $name) != $value) continue 2;
-                        }
+        $result = null;
+
+        /** @var ServiceInterface $service */
+        $service = $this->getService();
+
+        $item = $service->getByHashtable($id);
+
+        if ($item) {
+            if ($attributes) {
+                foreach ($attributes as $name => $value) {
+                    if ($value === false || is_null($value)) continue;
+
+                    // if any of attributes is not contains in item
+                    if ($service->getItemAttribute($item, $name) != $value) {
+                        $result = null;
+                        break;
                     }
-                    return $item;
                 }
+            } else {
+                $result = $item;
             }
         }
 
-        return null;
+        return $result;
     }
 
     /**
