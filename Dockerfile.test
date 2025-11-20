@@ -1,0 +1,29 @@
+FROM php:8.3-cli
+
+# Установка системных зависимостей
+RUN apt-get update && apt-get install -y \
+    git \
+    unzip \
+    libzip-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Установка расширений PHP
+RUN docker-php-ext-install zip
+
+# Установка PCOV для покрытия кода
+RUN pecl install pcov && docker-php-ext-enable pcov
+
+# Установка Composer
+COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+
+# Рабочая директория
+WORKDIR /app
+
+# Переменные окружения
+ENV COMPOSER_ALLOW_SUPERUSER=1
+ENV COMPOSER_NO_INTERACTION=1
+ENV XDEBUG_MODE=off
+
+# Настройка PCOV по умолчанию
+ENV PCOV_ENABLED=1
+

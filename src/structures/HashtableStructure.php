@@ -14,6 +14,9 @@ class HashtableStructure extends AbstractStructure
 {
     use HashableStructure;
 
+    /**
+     * @var string|null
+     */
     protected ?string $key_name = null;
 
     protected ?array $cursor_keys = null;
@@ -21,9 +24,9 @@ class HashtableStructure extends AbstractStructure
     /**
      * @param string|null $key_name
      *
-     * @return object
+     * @return HashtableStructure
      */
-    public function setKeyName(?string $key_name): object
+    public function setKeyName(?string $key_name): HashtableStructure
     {
         $this->key_name = $key_name;
         return $this;
@@ -40,9 +43,9 @@ class HashtableStructure extends AbstractStructure
     /**
      * @param array|null $cursor_keys
      *
-     * @return object
+     * @return HashtableStructure
      */
-    public function setCursorKeys(?array $cursor_keys): object
+    public function setCursorKeys(?array $cursor_keys): HashtableStructure
     {
         $this->cursor_keys = $cursor_keys;
         return $this;
@@ -63,7 +66,7 @@ class HashtableStructure extends AbstractStructure
      *
      * @return StructureInterface
      */
-    public function setItems(array $items)
+    public function setItems(array $items): StructureInterface
     {
         $this->items = [];
 
@@ -75,8 +78,7 @@ class HashtableStructure extends AbstractStructure
             if (in_array(HashableStructure::class, class_uses(static::class)) ) {
                 $itemKey = $this->getHash($item);
             } else {
-                $itemKey = $service
-                    ->getItemPrimaryKey($item);
+                $itemKey = $service->getItemPrimaryKey($item);
             }
 
             // if set cursor keys, then item cursor will formed by them

@@ -1,0 +1,31 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: repository-test
+    working_dir: /app
+    volumes:
+      - .:/app
+      - composer-cache:/root/.composer/cache
+    environment:
+      - COMPOSER_ALLOW_SUPERUSER=1
+      - COMPOSER_NO_INTERACTION=1
+    command: >
+      sh -c "
+        echo 'Установка зависимостей...' &&
+        if [ ! -d vendor ]; then composer install --no-interaction --prefer-dist; fi &&
+        echo 'Запуск тестов с покрытием кода...' &&
+        php -d pcov.enabled=1 -d pcov.directory=./src vendor/bin/phpunit --testdox --coverage-html coverage
+      "
+    networks:
+      - test-network
+
+volumes:
+  composer-cache:
+    driver: local
+
+networks:
+  test-network:
+    driver: bridge
+

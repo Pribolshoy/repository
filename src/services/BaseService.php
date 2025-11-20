@@ -1,12 +1,12 @@
 <?php
 
-namespace pribolshoy\repository;
+namespace pribolshoy\repository\services;
 
 use pribolshoy\repository\exceptions\ServiceException;
-use pribolshoy\repository\filters\AbstractFilter;
 use pribolshoy\repository\filters\ServiceFilter;
 use pribolshoy\repository\interfaces\BaseServiceInterface;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
+use pribolshoy\repository\interfaces\FilterInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
 use pribolshoy\repository\interfaces\ServiceInterface;
 use pribolshoy\repository\interfaces\StructureInterface;
@@ -67,7 +67,7 @@ abstract class BaseService implements BaseServiceInterface
      */
     protected ?string $repository_class = "";
 
-    protected ?AbstractFilter $filter = null;
+    protected ?FilterInterface $filter = null;
 
     protected string $filter_class = ServiceFilter::class;
 
@@ -79,7 +79,15 @@ abstract class BaseService implements BaseServiceInterface
         $this->init();
     }
 
-    protected function init() {}
+    /**
+     * Initialize service.
+     * Can be overridden in child classes.
+     *
+     * @return void
+     */
+    protected function init()
+    {
+    }
 
     /**
      * @return bool
@@ -94,7 +102,7 @@ abstract class BaseService implements BaseServiceInterface
      *
      * @return $this
      */
-    public function setPrimaryKeys(array $primaryKeys): object
+    public function setPrimaryKeys(array $primaryKeys): BaseServiceInterface
     {
         $this->primaryKeys = $primaryKeys;
         return $this;
@@ -115,7 +123,7 @@ abstract class BaseService implements BaseServiceInterface
 
             if (!$class) {
                 throw new ServiceException('Property item_structure_class is not set');
-            } else if (!class_exists($class)) {
+            } elseif (!class_exists($class)) {
                 throw new ServiceException('Item structure class not found: ' . $this->item_structure_class ?? 'empty');
             }
 
@@ -141,7 +149,7 @@ abstract class BaseService implements BaseServiceInterface
 
             if (!$class) {
                 throw new ServiceException('Property hashtable_item_structure_class is not set');
-            } else if (!class_exists($class)) {
+            } elseif (!class_exists($class)) {
                 throw new ServiceException('Item structure class not found: ' . $this->hashtable_item_structure_class ?? 'empty');
             }
 
@@ -202,9 +210,9 @@ abstract class BaseService implements BaseServiceInterface
     {
         if (!$this->repository_class) {
             throw new ServiceException('Property repository_class is not set');
-        } else if (class_exists($this->repository_class)) {
+        } elseif (class_exists($this->repository_class)) {
             return $this->repository_class;
-        } else if (class_exists($this->repository_path . $this->repository_class)) {
+        } elseif (class_exists($this->repository_path . $this->repository_class)) {
             return $this->repository_path . $this->repository_class;
         } else {
             throw new ServiceException('Repository class not found: ' . $this->repository_class ?? 'empty');
@@ -219,14 +227,15 @@ abstract class BaseService implements BaseServiceInterface
      * @return RepositoryInterface|CachebleRepositoryInterface
      * @throws ServiceException
      */
-    public function getRepository(array $params = []): object
+    public function getRepository(array $params = []): RepositoryInterface
     {
         $class = $this->getRepositoryClass();
         /** @var $repository RepositoryInterface */
         $repository =  new $class($params);
 
-        if (!$repository instanceof RepositoryInterface)
+        if (!$repository instanceof RepositoryInterface) {
             throw new ServiceException("Repository must implement RepositoryInterface");
+        }
 
         return $repository;
     }
@@ -236,7 +245,7 @@ abstract class BaseService implements BaseServiceInterface
      *
      * @return object
      */
-    public function setRepositoryClass(string $repository_class): object
+    public function setRepositoryClass(string $repository_class): BaseServiceInterface
     {
         $this->repository_class = $repository_class;
         return $this;
@@ -256,12 +265,12 @@ abstract class BaseService implements BaseServiceInterface
      *
      * @return BaseService|AbstractService
      * @throws exceptions\ServiceException
+     * @throws ServiceException
      */
-    public function setItems(array $items)
+    public function setItems(array $items): void
     {
         $this->getItemStructure()->setItems($items);
         $this->updateHashtable();
-        return $this;
     }
 
     /**
@@ -273,22 +282,21 @@ abstract class BaseService implements BaseServiceInterface
      * @return $this
      * @throws exceptions\ServiceException
      */
-    public function addItem($item, bool $replace_if_exists = true): object
+    public function addItem($item, bool $replace_if_exists = true): BaseServiceInterface
     {
         $update = false;
 
         if ($this->getItems()) {
-            // hashtable_item_structure contains of only unique items
             $item_key = $this->getBasicHashtableStructure()
                 ->getByKey($item);
 
-            // if item exists and we want to replace it
+            // if exists and we want to replace
             if (!is_null($item_key) && $replace_if_exists) {
                 $this->getItemStructure()
                     ->addItem($item, $item_key);
 
                 $update = true;
-            } else if (is_null($item_key)) {
+            } elseif (is_null($item_key)) {
                 // item don't exists in items yet
                 $this->getItemStructure()
                     ->addItem($item);
@@ -317,10 +325,7 @@ abstract class BaseService implements BaseServiceInterface
      */
     public function getItemHash($item)
     {
-        $key = mb_strlen($primaryKey = $this->getItemPrimaryKey($item))
-            ? $primaryKey
-            : serialize($item);
-
+        $key = $this->getItemPrimaryKey($item) ?: serialize($item);
         return $this->hash($key);
     }
 
@@ -368,7 +373,7 @@ abstract class BaseService implements BaseServiceInterface
      * @return $this
      * @throws exceptions\ServiceException
      */
-    public function updateHashtable() :object
+    public function updateHashtable() :BaseServiceInterface
     {
         $this->getBasicHashtableStructure()
             ->setItems($this->getItems() ?? []);
@@ -410,7 +415,7 @@ abstract class BaseService implements BaseServiceInterface
      *
      * @return object
      */
-    public function setFilterClass(string $filter_class): object
+    public function setFilterClass(string $filter_class): BaseServiceInterface
     {
         $this->filter_class = $filter_class;
         return $this;
@@ -419,9 +424,9 @@ abstract class BaseService implements BaseServiceInterface
     /**
      * @param bool $refresh
      *
-     * @return AbstractFilter
+     * @return FilterInterface
      */
-    public function getFilter(bool $refresh = false): AbstractFilter
+    public function getFilter(bool $refresh = false): FilterInterface
     {
         if (!$this->filter || $refresh) {
             $class = $this->filter_class;
@@ -436,7 +441,7 @@ abstract class BaseService implements BaseServiceInterface
      *
      * @return $this
      */
-    public function setSorting(array $sorting): object
+    public function setSorting(array $sorting): BaseServiceInterface
     {
         $this->sorting = $sorting;
         return $this;
@@ -460,7 +465,7 @@ abstract class BaseService implements BaseServiceInterface
      * @return array
      * @throws \Exception
      */
-    public function getByExp(array $attributes)
+    public function getByExp(array $attributes): array
     {
         return $this->getFilter()->getByExp($attributes) ?? [];
     }
@@ -471,7 +476,7 @@ abstract class BaseService implements BaseServiceInterface
      * @return array
      * @throws \Exception
      */
-    public function getByMulti(array $attributes)
+    public function getByMulti(array $attributes): array
     {
         return $this->getFilter()->getByMulti($attributes) ?? [];
     }
@@ -506,9 +511,8 @@ abstract class BaseService implements BaseServiceInterface
      * @return array
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = [])
+    public function getByIds(array $ids, array $attributes = []): array
     {
         return $this->getFilter()->getByIds($ids, $attributes) ?? [];
     }
 }
-

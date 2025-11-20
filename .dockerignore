@@ -1,0 +1,12 @@
+vendor/
+coverage/
+.phpunit.cache/
+.git/
+.gitignore
+docs/
+.vscode/
+.idea/
+*.log
+docker-compose.yml
+Dockerfile.test
+

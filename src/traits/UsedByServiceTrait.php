@@ -2,8 +2,6 @@
 
 namespace pribolshoy\repository\traits;
 
-use pribolshoy\repository\AbstractService;
-use pribolshoy\repository\EnormousCachebleService;
 use pribolshoy\repository\interfaces\BaseServiceInterface;
 use pribolshoy\repository\interfaces\ServiceInterface;
 
@@ -14,18 +12,18 @@ use pribolshoy\repository\interfaces\ServiceInterface;
  */
 trait UsedByServiceTrait
 {
-    protected ?AbstractService $service = null;
+    protected ?BaseServiceInterface $service = null;
 
     /**
-     * @param BaseServiceInterface|AbstractService|null $service
+     * @param BaseServiceInterface|null $service
      */
-    public function setService(?AbstractService $service): void
+    public function setService(?BaseServiceInterface $service): void
     {
         $this->service = $service;
     }
 
     /**
-     * @return ServiceInterface|AbstractService|EnormousCachebleService|null
+     * @return BaseServiceInterface|ServiceInterface|null
      */
     public function getService(): ?object
     {

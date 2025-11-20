@@ -2,8 +2,7 @@
 
 namespace pribolshoy\repository\structures;
 
-use pribolshoy\repository\AbstractService;
-use pribolshoy\repository\interfaces\ServiceInterface;
+use pribolshoy\repository\interfaces\BaseServiceInterface;
 use pribolshoy\repository\interfaces\StructureInterface;
 use pribolshoy\repository\traits\HashableStructure;
 use pribolshoy\repository\traits\UsedByServiceTrait;
@@ -18,7 +17,7 @@ abstract class AbstractStructure implements StructureInterface
 
     protected ?array $items = null;
 
-    public function __construct(AbstractService $service)
+    public function __construct(BaseServiceInterface $service)
     {
         $this->service = $service;
     }
@@ -28,7 +27,7 @@ abstract class AbstractStructure implements StructureInterface
      *
      * @return object
      */
-    public function addParams(array $params):object
+    public function addParams(array $params): StructureInterface
     {
         foreach ($params as $name => $value) {
             if (property_exists(static::class, $name)) {
@@ -42,7 +41,7 @@ abstract class AbstractStructure implements StructureInterface
     /**
      * @return array
      */
-    public function getItems():?array
+    public function getItems(): ?array
     {
         return $this->items;
     }
@@ -52,7 +51,7 @@ abstract class AbstractStructure implements StructureInterface
      *
      * @return StructureInterface
      */
-    public function setItems(array $items)
+    public function setItems(array $items): StructureInterface
     {
         $this->items = $items;
         return $this;
@@ -64,7 +63,7 @@ abstract class AbstractStructure implements StructureInterface
      *
      * @return object
      */
-    public function addItem($item, $key = null):object
+    public function addItem($item, $key = null): StructureInterface
     {
         if (!is_null($key)) {
             $this->items[$key] = $item;
@@ -86,7 +85,8 @@ abstract class AbstractStructure implements StructureInterface
     {
         $items = $this->getItems();
 
-        if (!is_null($key)
+        if (
+            !is_null($key)
             && $key !== ''
             && $items
         ) {
@@ -114,12 +114,14 @@ abstract class AbstractStructure implements StructureInterface
     {
         $items = $this->getItems();
 
-        if (is_array($keys)
+        if (
+            is_array($keys)
             && $keys
             && $items
         ) {
             // if structure use HashableStructure trait
-            if (in_array(HashableStructure::class, class_uses(static::class))
+            if (
+                in_array(HashableStructure::class, class_uses(static::class))
             ) {
                 foreach ($keys as &$key) {
                     /** @var HashableStructure $hashable */
@@ -133,6 +135,4 @@ abstract class AbstractStructure implements StructureInterface
 
         return null;
     }
-
 }
-

@@ -1,0 +1,90 @@
+deptrac:
+  paths:
+    - ./src
+  exclude_files:
+    - '#.*test.*#'
+  layers:
+    - name: Exception
+      collectors:
+        - type: directory
+          value: src/exceptions
+    - name: Interface
+      collectors:
+        - type: directory
+          value: src/interfaces
+    - name: Trait
+      collectors:
+        - type: directory
+          value: src/traits
+    - name: Structure
+      collectors:
+        - type: directory
+          value: src/structures
+    - name: Driver
+      collectors:
+        - type: directory
+          value: src/drivers
+    - name: Repository
+      collectors:
+        - type: className
+          value: pribolshoy\\repository\\AbstractRepository
+        - type: className
+          value: pribolshoy\\repository\\AbstractCachebleRepository
+    - name: Filter
+      collectors:
+        - type: directory
+          value: src/filters
+    - name: Service
+      collectors:
+        - type: directory
+          value: src/services
+    - name: Util
+      collectors:
+        - type: className
+          value: pribolshoy\\repository\\.(Config|Logger)
+  ruleset:
+    Exception:
+      - Exception
+    Interface:
+      - Interface
+      - Exception
+      - Structure
+    Trait:
+      - Trait
+      - Interface
+      - Exception
+    Structure:
+      - Structure
+      - Trait
+      - Interface
+      - Exception
+    Driver:
+      - Driver
+      - Interface
+      - Exception
+    Repository:
+      - Repository
+      - Interface
+      - Exception
+      - Trait
+      - Util
+    Filter:
+      - Filter
+      - Service
+      - Structure
+      - Trait
+      - Interface
+      - Exception
+    Service:
+      - Service
+      - Repository
+      - Filter
+      - Structure
+      - Trait
+      - Driver
+      - Interface
+      - Exception
+      - Util
+    Util:
+      - Util
+      - Exception

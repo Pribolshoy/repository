@@ -30,12 +30,20 @@ abstract class AbstractRepository implements RepositoryInterface
     protected ?string $model_class = null;
 
     /**
-     * Object which will using for search.
-     * For example, it could be ActiveRecord in Yii2
+     * Query builder object which will using for search.
+     * For example, it could be ActiveQuery in Yii2
      *
-     * @var object
+     * @var null|object
      */
-    protected ?object $model = null;
+    protected ?object $queryBuilder = null;
+
+    /**
+     * Cached query builder instance.
+     * Created once and reused unless force flag is set.
+     *
+     * @var null|object
+     */
+    protected ?object $queryBuilderInstance = null;
 
     /**
      * Params which will using for external collecting filters.
@@ -57,7 +65,7 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * @var array
      */
-    public array $items = [];
+    public ?array $items = null;
 
     protected ?int $total_count = null;
 
@@ -78,7 +86,9 @@ abstract class AbstractRepository implements RepositoryInterface
     public function __construct(array $params = [], ?string $model_class = null)
     {
         $this->params = $params;
-        if ($model_class) $this->model_class = $model_class;
+        if ($model_class) {
+            $this->model_class = $model_class;
+        }
 
         $this->makeQueryBuilder();
         $this->collectFilter();
@@ -152,23 +162,43 @@ abstract class AbstractRepository implements RepositoryInterface
         array $params,
         bool $update_filter = false,
         bool $clear_filter = false
-    ): object {
+    ): RepositoryInterface {
         $this->params = $params;
-        if ($clear_filter) $this->filter = [];
-        if ($update_filter) $this->collectFilter();
+        if ($clear_filter) {
+            $this->filter = [];
+        }
+        if ($update_filter) {
+            $this->collectFilter();
+        }
         return $this;
     }
 
+    /**
+     * Get params property.
+     *
+     * @return array
+     */
     public function getParams(): array
     {
         return $this->params;
     }
 
+    /**
+     * Get filters property.
+     *
+     * @return array
+     */
     public function getFilters(): array
     {
         return $this->filter;
     }
 
+    /**
+     * Get filter by name.
+     *
+     * @param string $name Filter name
+     * @return mixed
+     */
     public function getFilter(string $name)
     {
         return $this->getFilters()[$name] ?? null;
@@ -181,7 +211,9 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     public function search(bool $refresh = true)
     {
-        if ($refresh) $this->makeQueryBuilder();
+        if ($refresh) {
+            $this->makeQueryBuilder();
+        }
 
         $this->beforeFetch();
         $this->fetch();
@@ -204,11 +236,11 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     public function getQueryBuilder()
     {
-        if (!$this->model) {
+        if (!$this->queryBuilder) {
             $this->makeQueryBuilder();
         }
 
-        return $this->model;
+        return $this->queryBuilder;
     }
 
     /**
@@ -218,8 +250,10 @@ abstract class AbstractRepository implements RepositoryInterface
      */
     protected function beforeFetch()
     {
-        // if lazy load is deactivate - connections dont adding
-        if (!$this->lazy_load) $this->addConnections();
+        // if lazy load is deactivate - connections don't adding
+        if (!$this->lazy_load) {
+            $this->addConnections();
+        }
         $this->addQueries();
         return $this;
     }
@@ -235,14 +269,20 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * return $this
      */
-    protected function afterFetch() {return $this;}
+    protected function afterFetch()
+    {
+        return $this;
+    }
 
     /**
      * Configuration of entity connections with other entities.
      *
      * return $this
      */
-    protected function addConnections() {return $this;}
+    protected function addConnections()
+    {
+        return $this;
+    }
 
     /**
      * Collecting of filters.
@@ -264,13 +304,16 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * @return object
      */
-    protected function modifyParams() :object {return $this;}
+    protected function modifyParams(): object
+    {
+        return $this;
+    }
 
     /**
      * Gets table name from entity or other way.
      * @return string
      */
-    abstract public function getTableName() :string;
+    abstract public function getTableName(): string;
 
     /**
      * Standart filter collecting from params, which may be
@@ -281,7 +324,9 @@ abstract class AbstractRepository implements RepositoryInterface
     /**
      * Individual filter collecting from params, for a specific entity.
      */
-    protected function filter() {}
+    protected function filter()
+    {
+    }
 
     /**
      * В методе происходит подготовка параметров для
@@ -294,7 +339,10 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * return $this
      */
-    protected function addPreQueries() {return $this;}
+    protected function addPreQueries()
+    {
+        return $this;
+    }
 
     /**
      * В методе происходит установка всех параметров where
@@ -302,7 +350,10 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * return $this
      */
-    protected function addQueries()  {return $this;}
+    protected function addQueries()
+    {
+        return $this;
+    }
 
     /**
      * В методе устанавливаются limit и offset
@@ -310,7 +361,10 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * return $this
      */
-    protected function addLimitAndOffset() :object {return $this;}
+    protected function addLimitAndOffset(): object
+    {
+        return $this;
+    }
 
     /**
      *
@@ -319,23 +373,32 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * return $this
      */
-    protected function getTotal() {return $this;}
+    protected function getTotal()
+    {
+        return $this;
+    }
 
     /**
-     * Creating of model object for fetching elements by
+     * Getting query builder instance for fetching elements by
      * model_class property.
      *
+     * Instance is created once and cached. Use force flag to recreate it.
+     *
+     * @param bool $force Force recreation of instance even if cached
      * @return object
      * @throws RepositoryException
      */
-    public function getModel() :object
+    public function getQueryBuilderInstance(bool $force = false): object
     {
+        if ($this->queryBuilderInstance !== null && !$force) {
+            return $this->queryBuilderInstance;
+        }
+
         if ($this->model_class) {
-            return new $this->model_class();
+            $this->queryBuilderInstance = new $this->model_class();
+            return $this->queryBuilderInstance;
         } else {
             throw new RepositoryException('Не задан класс сущности для репозитория');
         }
-
     }
 }
-

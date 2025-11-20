@@ -24,6 +24,7 @@ trait HashableStructure
         if (is_string($value) || is_int($value)) {
             $hash = $this->getHashByString($value);
         } else {
+            // in this case we assume that value is array or object
             $hash = $this->getHashByItem($value);
         }
 
@@ -48,11 +49,11 @@ trait HashableStructure
     /**
      * Get hash by item.
      *
-     * @param $value
+     * @param $item
      *
      * @return string
      */
-    private function getHashByItem($value) :string
+    private function getHashByItem($item) :string
     {
         /** @var ServiceInterface $service */
         $service = $this->getService();
@@ -60,12 +61,11 @@ trait HashableStructure
         $keyName = $this->getKeyName();
 
         if ($keyName
-            && ($value = $service->getItemAttribute($value, $keyName))
+            && ($value = $service->getItemAttribute($item, $keyName))
         ) {
             $hash = $service->hash($value);
         } else {
-            $hash = $service
-                ->getItemHash($value);
+            $hash = $service->getItemHash($item);
         }
 
         return (string)$hash;

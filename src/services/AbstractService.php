@@ -1,8 +1,9 @@
 <?php
 
-namespace pribolshoy\repository;
+namespace pribolshoy\repository\services;
 
 use pribolshoy\repository\interfaces\ServiceInterface;
+use pribolshoy\repository\exceptions\ServiceException;
 
 /**
  * Class AbstractService
@@ -13,7 +14,6 @@ use pribolshoy\repository\interfaces\ServiceInterface;
  */
 abstract class AbstractService extends BaseService implements ServiceInterface
 {
-
     /**
      * Names of items properties which we can call
      * primary keys.
@@ -22,6 +22,15 @@ abstract class AbstractService extends BaseService implements ServiceInterface
     protected array $primaryKeys = [
         'id',
     ];
+
+    /**
+     * @return array
+     * @throws exceptions\ServiceException
+     */
+    public function getItems(): ?array
+    {
+        return parent::getItems();
+    }
 
     /**
      * Get primary key from item.
@@ -54,18 +63,29 @@ abstract class AbstractService extends BaseService implements ServiceInterface
      * @param string $name
      *
      * @return mixed
+     * @throws ServiceException
      */
     public function getItemAttribute($item, string $name)
     {
-        if (is_array($item)
-            && array_key_exists($name, $item)
-        ) {
-            $result = $item[$name];
-        } elseif (is_object($item)
-            && isset($item->$name)) {
-            $result = $item->$name;
+        if (!is_array($item) && !is_object($item)) {
+            throw new ServiceException('Property item has wrong type');
         }
 
+        if (is_array($item)) {
+            if (array_key_exists($name, $item)) {
+                $result = $item[$name];
+            } elseif (
+                ($attributes = $item['attributes'] ?? null)
+                && array_key_exists($name, $attributes)
+            ) {
+                $result = $attributes[$name];
+            }
+        } elseif (
+            is_object($item)
+            && isset($item->$name)
+        ) {
+            $result = $item->$name;
+        }
         return $result ?? null;
     }
 
@@ -153,8 +173,10 @@ abstract class AbstractService extends BaseService implements ServiceInterface
         $key = $structure
             ->getByKey($key);
 
-        return $this->getItemStructure()
-            ->getByKey($key) ?? [];
+        if ($item = $this->getItemStructure()->getByKey($key) ?? []) {
+            // item is ready to use
+        }
+        return $item;
     }
 
     /**
@@ -208,12 +230,12 @@ abstract class AbstractService extends BaseService implements ServiceInterface
      * @return ServiceInterface
      * @throws exceptions\ServiceException
      */
-    public function resort(): object
+    public function resort(): ServiceInterface
     {
         if ($items = $this->getItems()) {
             $this->setItems($this->sort($items));
         }
         return $this;
     }
-}
 
+}

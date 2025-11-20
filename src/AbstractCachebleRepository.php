@@ -2,6 +2,8 @@
 
 namespace pribolshoy\repository;
 
+use Exception;
+use pribolshoy\repository\Config;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CacheDriverInterface;
 use pribolshoy\repository\traits\CatalogTrait;
@@ -60,7 +62,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * @param int $num
      * @return $this
      */
-    public function setMaxCachedPage($num)
+    public function setMaxCachedPage($num): CachebleRepositoryInterface
     {
         $this->max_cached_page = $num;
         return $this;
@@ -69,7 +71,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
     /**
      * @return int
      */
-    public function getMaxCachedPage() :int
+    public function getMaxCachedPage(): int
     {
         return $this->max_cached_page;
     }
@@ -79,20 +81,34 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      */
     public function getDriverParams(): array
     {
-
         return $this->driver_params;
+    }
+
+    /**
+     * Set cache driver instance.
+     * Useful for testing and dependency injection.
+     *
+     * @param CacheDriverInterface $driver
+     * @return $this
+     */
+    public function setDriver(CacheDriverInterface $driver): CachebleRepositoryInterface
+    {
+        $this->driver_instance = $driver;
+        return $this;
     }
 
     /**
      * Get driver using for cache repository.
      * Default Redis
      *
-     * @return mixed
-     * @throws \Exception
+     * @return CacheDriverInterface
+     * @throws Exception
      */
-    protected function getDriver()
+    public function getDriver(): CacheDriverInterface
     {
-        if ($this->driver_instance) return $this->driver_instance;
+        if ($this->driver_instance) {
+            return $this->driver_instance;
+        }
 
         if ($this->driver) {
             $class = $this->driver_path . ucfirst($this->driver) . 'Driver';
@@ -100,7 +116,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
                 return $this->driver_instance = new $class($this->getDriverParams());
             }
         }
-        throw new \Exception('Driver is not defined or not valid');
+        throw new Exception('Driver is not defined or not valid');
     }
 
     /**
@@ -108,9 +124,10 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      *
      * @return bool
      */
-    public function isCacheble() :bool
+    public function isCacheble(): bool
     {
-        if ($this->isCacheActive()
+        if (
+            $this->isCacheActive()
             && $this->page <= $this->getMaxCachedPage()
             && $this->getHashName()
         ) {
@@ -125,7 +142,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      *
      * @return $this
      */
-    public function setActiveCache(bool $activate = true): object
+    public function setActiveCache(bool $activate = true): CachebleRepositoryInterface
     {
         $this->active_cache = $activate;
         return $this;
@@ -143,7 +160,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * @param int $duration
      * @return $this
      */
-    public function setCacheDuration(int $duration)
+    public function setCacheDuration(int $duration): CachebleRepositoryInterface
     {
         $this->cache_duration = $duration;
         return $this;
@@ -177,9 +194,9 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * Set hash_name property
      *
      * @param string $hash_name
-     * @return static
+     * @return CachebleRepositoryInterface
      */
-    public function setHashName(string $hash_name)
+    public function setHashName(string $hash_name): CachebleRepositoryInterface
     {
         $this->hash_name = $hash_name;
         return $this;
@@ -194,20 +211,21 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      *
      * @return string
      */
-    public function getHashName(bool $refresh = false, bool $use_params = true, bool $save_to = true) :string
+    public function getHashName(bool $refresh = false, bool $use_params = true, bool $save_to = true): string
     {
         if ($this->hash_name && !$refresh) {
             return $this->hash_name;
         } else {
             $hash_name = $this->getHashPrefix();
             if ($use_params && $this->getFilters()) {
-                $hash_name = $hash_name . ':' . $this->getHashFromArray($this->getFilters());
+                $hash_name = $hash_name . Config::getIdDelimiter() . $this->getHashFromArray($this->getFilters());
             }
 
             $hash_name = trim($hash_name, '&');
 
-            if ($save_to)
+            if ($save_to) {
                 $this->hash_name = $hash_name;
+            }
         }
 
         return $hash_name ?? '';
@@ -220,11 +238,13 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * @param array $params
      *
      * @return $this
-     * @throws \Exception
+     * @throws Exception
      */
-    public function setToCache($data, array $params = []): self
+    public function setToCache($data, array $params = []): CachebleRepositoryInterface
     {
-        if (!$this->getHashName()) return $this;
+        if (!$this->getHashName()) {
+            return $this;
+        }
 
         $this->getDriver()
             ->set(
@@ -244,11 +264,13 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * @param array $params
      *
      * @return mixed
-     * @throws \Exception
+     * @throws Exception
      */
     public function getFromCache(bool $refresh = false, array $params = [])
     {
-        if (!$this->getHashName($refresh)) return [];
+        if (!$this->getHashName($refresh)) {
+            return [];
+        }
         return $this->getDriver()
                 ->get($this->getHashName(), $params) ?? [];
     }
@@ -258,13 +280,19 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      *
      * @param array $params
      *
-     * @return mixed
-     * @throws \Exception
+     * @return CachebleRepositoryInterface
+     * @throws Exception
      */
-    public function deleteFromCache(array $params = [])
+    public function deleteFromCache(array $params = []): CachebleRepositoryInterface
     {
-        return $this->getDriver()
-                ->delete($this->getHashName(), $params) ?? [];
+        if (!$this->getHashName()) {
+            return $this;
+        }
+
+        $this->getDriver()
+            ->delete($this->getHashName(), $params);
+
+        return $this;
     }
 
     /**
@@ -273,12 +301,14 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      *
      * @param array $data
      * @param bool $hashToMd5
+     *
      * @return string
      */
-    public function getHashFromArray(array $data, bool $hashToMd5 = false) :string
+    public function getHashFromArray(array $data, bool $hashToMd5 = false): string
     {
         if ($data) {
-            $hash = json_encode(array_diff($data, [null]));
+            // TODO: вставить сюда Hasher
+            $hash = json_encode(array_filter($data));
 
             if (strlen($hash) > 50 || $hashToMd5) {
                 $hash = md5($hash);
@@ -288,4 +318,3 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
         return $hash ?? '';
     }
 }
-

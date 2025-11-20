@@ -4,6 +4,7 @@ namespace pribolshoy\repository\filters;
 
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
+use pribolshoy\repository\interfaces\PaginatedCachebleServiceInterface;
 
 /**
  * Class PaginatedServiceFilter
@@ -12,9 +13,17 @@ use pribolshoy\repository\interfaces\CachebleServiceInterface;
  */
 class PaginatedServiceFilter extends AbstractFilter
 {
+
+    /**
+     * @param array $params
+     * @param bool $cache_to
+     *
+     * @return array|null
+     * @throws \pribolshoy\repository\exceptions\ServiceException
+     */
     public function getList(array $params = [], bool $cache_to = true): ?array
     {
-        /** @var $service CachebleServiceInterface */
+        /** @var $service PaginatedCachebleServiceInterface */
         /** @var $repository CachebleRepositoryInterface */
         $service = $this->getService();
         $repository = $service->getRepository($params);
@@ -25,10 +34,11 @@ class PaginatedServiceFilter extends AbstractFilter
 
         $pages = null;
         $ids = [];
-        if ($service->isUseCache())
+        if ($service->isUseCache()) {
             $ids = $repository
                 ->setHashName($hash)
-                ->getFromCache(false, $service->cache_params);
+                ->getFromCache(false, $service->getCacheParams('get'));
+        }
 
         // if no data in cache - try to fetch it from repository
         if (!$ids && $items = $repository->search()) {
@@ -41,13 +51,13 @@ class PaginatedServiceFilter extends AbstractFilter
                 // ids
                 $repository
                     ->setHashName($hash)
-                    ->setToCache($ids);
+                    ->setToCache($ids, $service->getCacheParams('set'));
 
                 if ($pages) {
                     // pagination results
                     $repository
-                        ->setHashName($service->pagination_prefix . $repository->getHashName())
-                        ->setToCache($repository->getPages());
+                        ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
+                        ->setToCache($repository->getPages(), $service->getCacheParams('set'));
                 }
             }
         }
@@ -57,8 +67,8 @@ class PaginatedServiceFilter extends AbstractFilter
 
             if (is_null($pages)) {
                 $pages = $repository
-                    ->setHashName($service->pagination_prefix . $repository->getHashName())
-                    ->getFromCache(false, $service->cache_params);
+                    ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
+                    ->getFromCache(false, $service->getCacheParams('get'));
             }
 
             if ($pages) {
@@ -79,7 +89,7 @@ class PaginatedServiceFilter extends AbstractFilter
      * @return array|void
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = [])
+    public function getByIds(array $ids, array $attributes = []): array
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }

@@ -1,10 +1,14 @@
 <?php
 
-namespace pribolshoy\repository;
+namespace pribolshoy\repository\services;
 
+use Exception;
+use pribolshoy\repository\Config;
+use pribolshoy\repository\Logger;
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\CachebleServiceFilter;
 use pribolshoy\repository\filters\EnormousServiceFilter;
+use pribolshoy\repository\interfaces\BaseServiceInterface;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
@@ -58,11 +62,11 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      */
     protected string $hash_prefix = '';
 
-    protected string $alias_postfix = '_alias';
+    protected string $alias_postfix = ':alias';
 
     protected string $alias_attribute = '';
 
-    protected string $caching_postfix = '_caching';
+    protected string $caching_prefix = 'caching:';
 
     /**
      * Were items fetched from cache or not.
@@ -73,11 +77,17 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
     /**
      * Params for cache driver.
+     * Разделены на 'get' (для выборки из кеша) и 'set' (для сохранения в кеш).
      *
      * @var array
      */
     public array $cache_params = [
-        'strategy' => 'getAllHash'
+        'get' => [
+            'strategy' => 'hash'
+        ],
+        'set' => [
+            'strategy' => 'hash'
+        ]
     ];
 
     /**
@@ -100,7 +110,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return $this
      */
-    public function setUseCache(bool $use_cache)
+    public function setUseCache(bool $use_cache): CachebleServiceInterface
     {
         $this->use_cache = $use_cache;
         return $this;
@@ -119,7 +129,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return $this
      */
-    public function setUseAliasCache(bool $use_alias_cache)
+    public function setUseAliasCache(bool $use_alias_cache): CachebleServiceInterface
     {
         $this->use_alias_cache = $use_alias_cache;
         return $this;
@@ -132,17 +142,20 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return StructureInterface|HashtableStructure
      * @throws ServiceException
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function getAliasStructure(bool $refresh = false):HashtableStructure
+    protected function getAliasStructure(bool $refresh = false): HashtableStructure
     {
         if (is_null($this->alias_item_structure) || $refresh) {
             $class = $this->alias_item_structure_class;
 
             if (!$class) {
                 throw new ServiceException('Property alias_item_structure_class is not set');
-            } else if (!class_exists($class)) {
-                throw new ServiceException('Item structure class not found: ' . $this->alias_item_structure_class ?? 'empty');
+            } elseif (!class_exists($class)) {
+                throw new ServiceException(
+                    'Item structure class not found: '
+                    . $this->alias_item_structure_class ?? 'empty'
+                );
             }
 
             $this->alias_item_structure = new $class($this);
@@ -160,7 +173,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return string|int|null
      * @throws exceptions\ServiceException
-     * @throws \Exception
+     * @throws Exception
      */
     public function getByAliasStructure($value)
     {
@@ -178,7 +191,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @throws ServiceException
      */
-    public function updateHashtable() :object
+    public function updateHashtable(): BaseServiceInterface
     {
         parent::updateHashtable();
 
@@ -210,30 +223,41 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
-     * @param string $name
+     * @param string $name 'get' или 'set'
      * @param array $param
      *
      * @return object
      */
-    public function addCacheParams(string $name, array $param): object
+    public function addCacheParams(string $name, array $param): CachebleServiceInterface
     {
-        $this->cache_params[$name] = $param;
+        if (!isset($this->cache_params[$name])) {
+            $this->cache_params[$name] = [];
+        }
+        $this->cache_params[$name] = array_merge($this->cache_params[$name], $param);
         return $this;
     }
 
     /**
-     * @param array $cache_params
+     * @param array $cache_params Должен содержать ключи 'get' и/или 'set'
      *
      * @return object
      */
-    public function setCacheParams(array $cache_params): object
+    public function setCacheParams(array $cache_params): CachebleServiceInterface
     {
-        $this->cache_params = $cache_params;
+        // Поддержка обратной совместимости: если передан старый формат
+        if (isset($cache_params['strategy']) && !isset($cache_params['get']) && !isset($cache_params['set'])) {
+            $this->cache_params['get'] = ['strategy' => $cache_params['strategy']];
+            if (isset($cache_params['fields'])) {
+                $this->cache_params['get']['fields'] = $cache_params['fields'];
+            }
+        } else {
+            $this->cache_params = array_merge($this->cache_params, $cache_params);
+        }
         return $this;
     }
 
     /**
-     * @param string $name
+     * @param string $name 'get' или 'set', или пустая строка для получения всех параметров
      *
      * @return array
      */
@@ -247,7 +271,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
-     * @return bool
+     * @return bool default false
      */
     public function isFromCache(): bool
     {
@@ -260,7 +284,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return $this
      */
-    public function setIsFromCache(bool $is_from_cache)
+    public function setIsFromCache(bool $is_from_cache): CachebleServiceInterface
     {
         $this->is_from_cache = $is_from_cache;
         return $this;
@@ -290,33 +314,33 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * Is cache exists for this repository.
      * It checks by look at existing of caching flag.
      *
-     * @param AbstractCachebleRepository|null $repository
+     * @param CachebleRepositoryInterface|null $repository
      *
      * @return mixed
-     * @throws \Exception
+     * @throws Exception
      */
-    public function isCacheExists(?AbstractCachebleRepository $repository = null)
+    public function isCacheExists(?CachebleRepositoryInterface $repository = null): bool
     {
-        /** @var AbstractCachebleRepository $repository */
-        if (!$repository) $repository = $this->getRepository();
+        /** @var CachebleRepositoryInterface $repository */
+        if (!$repository) {
+            $repository = $this->getRepository();
+        }
 
-        return $repository
-            ->setHashName(
-                $this->getHashPrefix()
-                . $repository->getHashPrefix()
-                . $this->caching_postfix
-            )
-            ->getFromCache() ? true : false;
+        return (bool)$repository->setHashName(
+            $this->caching_prefix
+            . $this->getHashPrefix()
+            . $repository->getHashPrefix()
+        )->getFromCache(false, ['strategy' => 'string']);
     }
 
     /**
-     * Event will fired when we should to initiate cache.
+     * Event will fire when we should to initiate cache.
      * We can override this method in children, for example if
      * we want to initiate cache async in queue.
      *
      * @return bool
      *
-     * @throws \Exception
+     * @throws Exception
      */
     public function initStorageEvent(): bool
     {
@@ -351,9 +375,8 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
-     * Preparing item before caching.
-     * For example in this method we can create
-     * DTO or Aggregation from item.
+     * Preparing item after fetching from repository.
+     * In this statement it will retrieved by service client.
      *
      * @param $item
      *
@@ -364,7 +387,6 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
         return $item;
     }
 
-
     /**
      * Setter of alias_postfix
      *
@@ -372,7 +394,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return $this
      */
-    public function setAliasPostfix(string $alias_postfix): object
+    public function setAliasPostfix(string $alias_postfix): CachebleServiceInterface
     {
         $this->alias_postfix = $alias_postfix;
 
@@ -394,12 +416,12 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * in alias hash table.
      *
      * @return string
-     * @throws \Exception
+     * @throws Exception
      */
     public function getAliasAttribute(): string
     {
         if (!$this->alias_attribute) {
-            throw new \Exception('Name of item attribute for alias is not set');
+            throw new Exception('Name of item attribute for alias is not set');
         }
 
         return $this->alias_attribute;
@@ -409,14 +431,14 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * Get primary key from alias hash table.
      *
      * @param string                          $alias
-     * @param AbstractCachebleRepository|null $repository
+     * @param CachebleRepositoryInterface|null $repository
      *
      * @return mixed
-     * @throws \Exception
+     * @throws Exception
      */
     public function getPrimaryKeyByAlias(
         string $alias,
-        ?AbstractCachebleRepository $repository = null
+        ?CachebleRepositoryInterface $repository = null
     ) {
         /** @var CachebleServiceFilter $filter */
         $filter = $this->getFilter();
@@ -426,13 +448,13 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     }
 
     /**
-     * Get item by alias throw alias hash table.
+     * Get item by alias throw hash table.
      *
      * @param string $alias
      * @param array  $attributes
      *
      * @return array|mixed
-     * @throws \Exception
+     * @throws Exception
      */
     public function getByAlias(string $alias, array $attributes = [])
     {
@@ -450,41 +472,48 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * @param bool $refresh_repository_cache
      *
      * @return $this
-     * @throws \Exception
+     * @throws Exception
      */
-    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false)
+    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false): CachebleServiceInterface
     {
         $this->setItems([]);
 
-        /** @var $repository AbstractCachebleRepository */
-        if (!$repository) $repository = $this->getRepository(['limit' => $this->getFetchingStep()]);
+        /** @var CachebleRepositoryInterface $repository */
+        if (!$repository) {
+            $repository = $this->getRepository([
+                'limit' => $this->getFetchingStep()
+            ]);
+        }
 
         $this->setIsFromCache(false);
 
         // if we need to refresh - delete cache anyway
-        if ($refresh_repository_cache)
+        if ($this->isUseCache() && $refresh_repository_cache) {
             $this->clearStorage($repository);
+        }
 
         // if rows were found - set it to items
         if ($items = $repository->search()) {
             // preparing
-            foreach ($items as &$item) {
-                $item = $this->prepareItem($item);
+            foreach ($items as &$mutableItem) {
+                $mutableItem = $this->prepareItem($mutableItem);
             }
 
-            $this->setItems($items);
+            $this->setItems($this->sort($items));
 
             // if repos is cacheble - set items to cache
-            if ($repository->isCacheble()) {
+            if ($this->isUseCache() && $repository->isCacheble()) {
+                $baseHashName = $this->getHashPrefix() . $repository->getHashPrefix();
                 foreach ($items as $item) {
-                    $hash_name = $this->getHashPrefix()
-                        . $repository->getHashPrefix()
-                        . ':' . $this->getItemPrimaryKey($item);
+                    $hash_name = $baseHashName
+                        . $this->getIdPostfix() . $this->getItemIdValue($item);
 
                     $repository
                         ->setHashName($hash_name)
-                        ->setToCache($item);
+                        ->setToCache($item, $this->getCacheParams('set'));
                 }
+
+                Logger::log('initStorage', $baseHashName, 'service', $items);
             }
         }
 
@@ -496,12 +525,12 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     /**
      * Adding storage initiations of related cache.
      *
-     * @param AbstractCachebleRepository $repository
+     * @param CachebleRepositoryInterface $repository
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function afterInitStorage(AbstractCachebleRepository $repository): bool
+    protected function afterInitStorage(CachebleRepositoryInterface $repository): bool
     {
         $this->initAliasCache($repository);
         $this->initCachingFlag($repository);
@@ -513,23 +542,22 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * repository has already been initiated and don't need
      * to call initStorage().
      *
-     * @param AbstractCachebleRepository $repository
+     * @param CachebleRepositoryInterface $repository
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function initCachingFlag(AbstractCachebleRepository $repository): bool
+    protected function initCachingFlag(CachebleRepositoryInterface $repository): bool
     {
-        if ($this->getItems()) {
-            $repository
-                ->setCacheDuration($repository->getCacheDuration() - 600)
+        if ($this->isUseCache()) {
+            $ttlToMinus = Config::getCacheTtlToMinus();
+            $repository->setCacheDuration($repository->getCacheDuration() - $ttlToMinus)
                 ->setHashName(
-                    $this->getHashPrefix()
+                    $this->caching_prefix
+                    . $this->getHashPrefix()
                     . $repository->getHashPrefix()
-                    . $this->caching_postfix
-                )
-                ->setToCache(1)
-                ->setCacheDuration($repository->getCacheDuration() + 600);
+                )->setToCache(1, ['strategy' => 'string'])
+                ->setCacheDuration($repository->getCacheDuration() + $ttlToMinus);
         }
 
         return true;
@@ -543,30 +571,38 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return bool
      * @throws exceptions\ServiceException
-     * @throws \Exception
+     * @throws Exception
      */
-    public function refreshItem(array $primaryKeyArray)
+    public function refreshItem(array $primaryKeyArray): bool
     {
-        if (!$primaryKeyArray) return true;
+        if (!$primaryKeyArray) {
+            return true;
+        }
 
-        /** @var $repository AbstractCachebleRepository */
+        /** @var CachebleRepositoryInterface $repository */
         $repository = $this->getRepository(
             array_merge($primaryKeyArray, ['limit' => 1,])
         );
 
-        if (!$repository->isCacheble()) return true;
+        if (!$repository->isCacheble()) {
+            return true;
+        }
 
         if ($items = $repository->search()) {
             $item = $items[0];
 
             $hash_name = $this->getHashPrefix()
                 . $repository->getHashPrefix()
-                . ':' . $this->getItemPrimaryKey($item);
+                . $this->getIdPostfix() . $this->getItemIdValue($item);
 
-            // if item is in storage - it'll rewritten, if not - saved
+            $item = $this->prepareItem($item);
+
+            // if item is in storage - it'll rewrite, if not - saved
             $repository
                 ->setHashName($hash_name)
-                ->setToCache($this->prepareItem($item));
+                ->setToCache($item, $this->getCacheParams('set'));
+
+            Logger::log('refreshItem', $hash_name, 'service', $item);
 
             $this->addItem($item);
         } else {
@@ -574,8 +610,22 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
             $this->deleteItem($primaryKey);
         }
 
+        $this->afterRefreshItem($primaryKeyArray);
+
         return true;
     }
+
+    /**
+     * Event after item refresh.
+     * Can be overridden in child classes.
+     *
+     * @param array $primaryKeyArray Primary key array
+     * @return void
+     */
+    public function afterRefreshItem(array $primaryKeyArray): void
+    {
+    }
+
 
     /**
      * Delete all entity cache from storage
@@ -584,30 +634,32 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * @param array $params
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    public function clearStorage(?CachebleRepositoryInterface $repository = null, array $params = [])
+    public function clearStorage(?CachebleRepositoryInterface $repository = null, array $params = []): bool
     {
-        /** @var $repository AbstractCachebleRepository */
-        if (!$repository)
+        /** @var CachebleRepositoryInterface $repository */
+        if (!$repository) {
             $repository = $this->getRepository($params);
+        }
 
         // delete items
+        $itemsHashName = $this->getHashPrefix() . $repository->getHashPrefix();
         $repository
-            ->setHashName(
-                $this->getHashPrefix()
-                . $repository->getHashPrefix()
-            )
+            ->setHashName($itemsHashName)
             ->deleteFromCache();
 
+        Logger::log('clearStorage', $itemsHashName, 'service');
+
         // delete caching flag
+        $cachingFlagHashName = $this->caching_prefix
+            . $this->getHashPrefix()
+            . $repository->getHashPrefix();
         $repository
-            ->setHashName(
-                $this->getHashPrefix()
-                . $repository->getHashPrefix()
-                . $this->caching_postfix
-            )
+            ->setHashName($cachingFlagHashName)
             ->deleteFromCache();
+
+        Logger::log('clearStorage', $cachingFlagHashName, 'service');
 
         $this->afterStorageClear($repository);
 
@@ -617,22 +669,23 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     /**
      * Any additional events after storage clear.
      *
-     * @param AbstractCachebleRepository $repository
+     * @param CachebleRepositoryInterface $repository
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function afterStorageClear(AbstractCachebleRepository $repository): bool
+    protected function afterStorageClear(CachebleRepositoryInterface $repository): bool
     {
         if ($this->useAliasCache()) {
             // always clear alias cache
+            $aliasHashName = $this->getHashPrefix()
+                . $repository->getHashPrefix()
+                . $this->getAliasPostfix();
             $repository
-                ->setHashName(
-                    $this->getHashPrefix()
-                    . $repository->getHashPrefix()
-                    . $this->getAliasPostfix()
-                )
+                ->setHashName($aliasHashName)
                 ->deleteFromCache();
+
+            Logger::log('clearStorage', $aliasHashName, 'service');
         }
 
         return true;
@@ -645,21 +698,22 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      *
      * @return bool
      * @throws exceptions\ServiceException
-     * @throws \Exception
+     * @throws Exception
      */
-    public function deleteItem(string $primaryKey)
+    public function deleteItem(string $primaryKey): bool
     {
-        /** @var $repository AbstractCachebleRepository */
+        /** @var CachebleRepositoryInterface $repository */
         $repository = $this->getRepository();
 
         // delete item
+        $hash_name = $this->getHashPrefix()
+            . $repository->getHashPrefix()
+            . $this->getIdPostfix() . $primaryKey;
         $repository
-            ->setHashName(
-                $this->getHashPrefix()
-                . $repository->getHashPrefix()
-                . ':' . $primaryKey
-            )
+            ->setHashName($hash_name)
             ->deleteFromCache();
+
+        Logger::log('deleteItem', $hash_name, 'service');
 
         $this->afterDeleteItem($repository);
 
@@ -669,12 +723,12 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
     /**
      * Any additional events after item deleting.
      *
-     * @param AbstractCachebleRepository $repository
+     * @param CachebleRepositoryInterface $repository
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function afterDeleteItem(AbstractCachebleRepository $repository): bool
+    protected function afterDeleteItem(CachebleRepositoryInterface $repository): bool
     {
         return true;
     }
@@ -683,27 +737,28 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * Init to cache alias hash table, which we will use
      * for searching item primary key.
      *
-     * @param AbstractCachebleRepository $repository
+     * @param CachebleRepositoryInterface $repository
      *
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
-    protected function initAliasCache(AbstractCachebleRepository $repository): bool
+    protected function initAliasCache(CachebleRepositoryInterface $repository): bool
     {
-        if ($this->useAliasCache()
+        if (
+            $this->useAliasCache()
             && $items = $this->getItems()
         ) {
             // initiation of alias cache
-            if ($repository->isCacheble()) {
+            if ($this->isUseCache() && $repository->isCacheble()) {
                 foreach ($items as $item) {
                     $hash_name = $this->getHashPrefix()
                         . $repository->getHashPrefix()
                         . $this->getAliasPostfix()
-                        . ':' . $this->getItemAliasValue($item);
+                        . $this->getIdPostfix() . $this->getItemAliasValue($item);
 
                     $repository
                         ->setHashName($hash_name)
-                        ->setToCache($this->getItemPrimaryKey($item));
+                        ->setToCache($this->getItemPrimaryKey($item), $this->getCacheParams('set'));
                 }
             }
             $items = null;
@@ -718,7 +773,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * @param $item
      *
      * @return mixed
-     * @throws \Exception
+     * @throws Exception
      */
     protected function getItemAliasValue($item)
     {
@@ -728,5 +783,44 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
         return $this->getItemAttribute($item, $this->getAliasAttribute());
     }
-}
 
+    /**
+     * Getter of id_postfix
+     * Определяет поствикс на основе стратегии кеширования из cache_params['get'].
+     * Обращается к драйверу кеша для определения правильного делимитера.
+     * Если драйвер поддерживает метод getIdPostfixByStrategy, использует его,
+     * иначе возвращает делимитер по умолчанию из конфигурации.
+     *
+     * @return string
+     * @throws ServiceException
+     */
+    public function getIdPostfix(): string
+    {
+        // Получаем параметры для чтения из кеша
+        $cacheParamsGet = $this->getCacheParams('get');
+
+        // Пытаемся получить делимитер от драйвера, если он поддерживает эту функциональность
+        if (
+            $driver = $this->getRepository()->getDriver()
+            and method_exists($driver, 'getIdPostfixByStrategy')
+        ) {
+            return $driver->getIdPostfixByStrategy($cacheParamsGet);
+        }
+
+        // Если драйвер не поддерживает метод, используем делимитер по умолчанию
+        return Config::getIdDelimiter();
+    }
+
+    /**
+     * Get item ID value that will be used as key in cache.
+     * По умолчанию возвращает первичный ключ сущности.
+     *
+     * @param $item
+     *
+     * @return mixed
+     */
+    public function getItemIdValue($item)
+    {
+        return $this->getItemPrimaryKey($item);
+    }
+}

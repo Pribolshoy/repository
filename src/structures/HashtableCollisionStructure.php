@@ -36,7 +36,7 @@ class HashtableCollisionStructure extends HashtableStructure
 
         $implodedGroupKeys = implode('', $groupKeys);
 
-        if (in_array($implodedGroupKeys, $item)) {
+        if (is_array($item) && in_array($implodedGroupKeys, $item)) {
             return $item[$implodedGroupKeys] ?? null;
         }
 
@@ -65,7 +65,7 @@ class HashtableCollisionStructure extends HashtableStructure
 
         $implodedCollisionKeys = implode('', $collisionKeys);
 
-        if (in_array($implodedCollisionKeys, $item)) {
+        if (is_array($item) && in_array($implodedCollisionKeys, $item)) {
             return $item[$implodedCollisionKeys] ?? null;
         }
 
@@ -96,7 +96,7 @@ class HashtableCollisionStructure extends HashtableStructure
      *
      * @return StructureInterface
      */
-    public function setItems(array $items)
+    public function setItems(array $items): StructureInterface
     {
         $this->items = [];
 
@@ -115,15 +115,15 @@ class HashtableCollisionStructure extends HashtableStructure
      * @override
      *
      * @param $item
-     * @param int|string|null $groupKey
+     * @param int|string|null $key
      *
-     * @return object
+     * @return StructureInterface
      */
-    public function addItem($item, $groupKey = null):object
+    public function addItem($item, $key = null): StructureInterface
     {
         $itemCollisionKey = $this->getCollisionKey($item);
 
-        $this->items[$groupKey][$itemCollisionKey] = $item;
+        $this->items[$key][$itemCollisionKey] = $item;
         return $this;
     }
 

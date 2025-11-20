@@ -20,5 +20,15 @@ abstract class AbstractCacheDriver implements CacheDriverInterface
     abstract public function set(string $key, $value, int $cache_duration = 0, array $params = []) :object;
 
     abstract public function delete(string $key, array $params = []) :object;
+
+    protected function serialize($data) :string
+    {
+        return serialize($data);
+    }
+
+    protected function unserialize(string $data)
+    {
+        return unserialize($data);
+    }
 }
 

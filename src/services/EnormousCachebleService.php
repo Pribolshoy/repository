@@ -1,12 +1,14 @@
 <?php
 
-namespace pribolshoy\repository;
+namespace pribolshoy\repository\services;
 
-use pribolshoy\repository\AbstractCachebleService;
+use pribolshoy\repository\services\AbstractCachebleService;
 use pribolshoy\repository\filters\EnormousServiceFilter;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
+use pribolshoy\repository\interfaces\CachebleServiceInterface;
 use pribolshoy\repository\interfaces\EnormousServiceInterface;
 use pribolshoy\repository\interfaces\RepositoryInterface;
+use pribolshoy\repository\Logger;
 
 /**
  * Class EnormousCachebleService
@@ -15,7 +17,7 @@ use pribolshoy\repository\interfaces\RepositoryInterface;
  * usually more than 1000.
  *
  * It put in storage all rows, with desired filtering by repository.
- * Also this service put in cache alias hash table.
+ * Also, this service put in cache alias hash table.
  *
  * In this service we don't have getList method, we just take rows
  * by its ID or Alias.
@@ -30,18 +32,23 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      * How much times was ran method
      * initStorage() recursively
      *
-     * @var int
+     * @var null|int
      */
     protected ?int $init_iteration = null;
 
     protected bool $is_fetching = false;
 
-    protected string $hash_prefix = 'detail_';
+    protected string $hash_prefix = 'detail:';
 
     protected bool $use_alias_cache = true;
 
     public array $cache_params = [
-        'strategy' => 'getValue'
+        'get' => [
+            'strategy' => 'hash'
+        ],
+        'set' => [
+            'strategy' => 'hash'
+        ]
     ];
 
     /**
@@ -61,7 +68,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      *
      * @return $this
      */
-    public function setInitIteration(?int $init_iteration = null): object
+    public function setInitIteration(?int $init_iteration = null): EnormousServiceInterface
     {
         $this->init_iteration = $init_iteration;
         return $this;
@@ -84,7 +91,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      *
      * @return EnormousCachebleService
      */
-    public function setIsFetching(bool $is_fetching): object
+    public function setIsFetching(bool $is_fetching): EnormousServiceInterface
     {
         $this->is_fetching = $is_fetching;
         return $this;
@@ -124,9 +131,9 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      * @override
      * @deprecated
      *
-     * Method is depricated because of it can give wrong results.
+     * Method is deprecated because of it can give wrong results.
      * For example, if memory hashtable store not all items,
-     * then it return only some of them.
+     * then it returns only some of them.
      * At the time, all need items can be obtained by other methods.
      *
      * @param $keys
@@ -140,7 +147,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
         $keys,
         ?string $structureName = null
     ) {
-        throw new \Exception('Method ' . __METHOD__ . ' is depricated!');
+        throw new \Exception('Method ' . __METHOD__ . ' is deprecated!');
     }
 
     /**
@@ -151,7 +158,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
      * @return $this
      * @throws \Exception
      */
-    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false)
+    public function initStorage(?RepositoryInterface $repository = null, bool $refresh_repository_cache = false): CachebleServiceInterface
     {
         $this->setItems([]);
 
@@ -162,8 +169,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
             $this->setInitIteration(1);
             $fetched_items = 0;
         } else {
-            $this->setInitIteration($this->getInitIteration()+1);
-            $fetched_items = ($this->getInitIteration()-1) * $this->getFetchingStep();
+            $this->setInitIteration($this->getInitIteration() + 1);
+            $fetched_items = ($this->getInitIteration() - 1) * $this->getFetchingStep();
         }
 
         /** @var $repository RepositoryInterface */
@@ -171,7 +178,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
             $repository = $this->getRepository(
                 [
                     'limit'     => $this->getFetchingStep(),
-                    'offset'    => ($this->getInitIteration()-1) * $this->getFetchingStep(),
+                    'offset'    => ($this->getInitIteration() - 1) * $this->getFetchingStep(),
                 ]
             );
         }
@@ -181,8 +188,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
         // if rows were found - set it to items
         if ($items = $repository->search()) {
             // preparing
-            foreach ($items as &$item) {
-                $item = $this->prepareItem($item);
+            foreach ($items as &$mutableItem) {
+                $mutableItem = $this->prepareItem($mutableItem);
             }
 
             $this->setItems($items);
@@ -191,15 +198,16 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
 
             // if repos is cacheble - set items to cache
             if ($repository->isCacheble()) {
+                $baseHashName = $this->getHashPrefix() . $repository->getHashPrefix();
                 foreach ($items as $item) {
-                    $hash_name = $this->getHashPrefix()
-                        . $repository->getHashPrefix()
-                        . ':' . $this->getItemPrimaryKey($item);
+                    $hash_name = $baseHashName
+                        . $this->getIdPostfix() . $this->getItemIdValue($item);
 
-                    $repository
-                        ->setHashName($hash_name)
-                        ->setToCache($item);
+                    $repository->setHashName($hash_name)
+                        ->setToCache($item, $this->getCacheParams('set'));
                 }
+                
+                Logger::log('initStorage', $baseHashName, 'service', $items);
             }
         }
 
@@ -231,11 +239,7 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
         $this->setIsFetching(true);
 
         // doing initiation in cycle
-        for (
-            $i = 0;
-            $i <= $this->getMaxInitIteration() && $this->isFetching();
-            $i++
-        ) {
+        for ($i = 0; $i <= $this->getMaxInitIteration() && $this->isFetching(); $i++) {
             $this->initStorage();
         }
 
@@ -243,5 +247,4 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
 
         return true;
     }
-
 }

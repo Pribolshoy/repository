@@ -4,7 +4,11 @@ namespace pribolshoy\repository\interfaces;
 
 interface RepositoryInterface
 {
-
+    /**
+     * Get total count of items.
+     *
+     * @return int|null
+     */
     public function getTotalCount(): ?int;
 
     /**
@@ -14,9 +18,9 @@ interface RepositoryInterface
      * @param bool $update_filter flag - is to update filter properties
      * @param bool $clear_filter flag - is to clear filter properties before updating
      *
-     * @return $this
+     * @return RepositoryInterface
      */
-    public function setParams(array $params, bool $update_filter = false, bool $clear_filter = false): object;
+    public function setParams(array $params, bool $update_filter = false, bool $clear_filter = false): RepositoryInterface;
 
     /**
      * Get params property.
@@ -32,6 +36,12 @@ interface RepositoryInterface
      */
     public function getFilters(): array;
 
+    /**
+     * Get filter by name.
+     *
+     * @param string $name Filter name
+     * @return mixed
+     */
     public function getFilter(string $name);
 
     /**
@@ -42,10 +52,13 @@ interface RepositoryInterface
     public function search();
 
     /**
-     * Gets object by which repository will fetch rows.
+     * Gets query builder instance by which repository will fetch rows.
      *
+     * Instance is created once and cached. Use force flag to recreate it.
+     *
+     * @param bool $force Force recreation of instance even if cached
      * @return object
      */
-    public function getModel(): object;
+    public function getQueryBuilderInstance(bool $force = false): object;
 }
 

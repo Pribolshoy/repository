@@ -2,8 +2,7 @@
 
 namespace pribolshoy\repository\filters;
 
-use pribolshoy\repository\AbstractCachebleRepository;
-use pribolshoy\repository\AbstractService;
+use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
 use pribolshoy\repository\interfaces\EnormousServiceInterface;
 
@@ -24,7 +23,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
      * @return array
      * @throws \Exception
      */
-    public function getByExp(array $attributes)
+    public function getByExp(array $attributes): array
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }
@@ -35,7 +34,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
      * @return array
      * @throws \Exception
      */
-    public function getByMulti(array $attributes)
+    public function getByMulti(array $attributes): array
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }
@@ -58,7 +57,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById(int $id, array $attributes = [])
+    public function getById($id, array $attributes = [])
     {
         $item = $this->getByIds([$id], $attributes);
 
@@ -67,35 +66,43 @@ class EnormousServiceFilter extends CachebleServiceFilter
 
     /**
      * @param array $ids
-     * @param array $attributes
+     * @param array $attributes not used
      *
      * @return array
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = [])
+    public function getByIds(array $ids, array $attributes = []): array
     {
-        /** @var AbstractCachebleRepository $repository */
-        $repository = $this->getService()->getRepository();
-        $params = array_merge($this->getService()->cache_params, ['fields' => $ids]);
+        if (!$ids) {
+            return [];
+        }
+
+        /** @var CachebleServiceInterface $service */
+        $service = $this->getService();
+
+        /** @var CachebleRepositoryInterface $repository */
+        $repository = $service->getRepository();
+        $params = array_merge($service->getCacheParams('get'), ['fields' => $ids]);
 
         $fetch_from_repository = false;
 
-        if ($this->getService()->isUseCache()) {
+        if ($service->isUseCache()) {
             $items = $repository
                 ->setHashName(
-                    $this->getService()->getHashPrefix()
+                    $service->getHashPrefix()
                     . $repository->getHashPrefix()
-                )
-                ->getFromCache(false, $params);
+                )->getFromCache(false, $params);
 
-            // if cache not exists - do init storage for all items
+            // if we got items from cache, then
             if (!$items) {
-                if ($repository->isCacheble()
-                    && !$this->getService()->isCacheExists($repository)
+                // if cache not exists - do init storage for all items
+                if (
+                    $repository->isCacheble()
+                    && !$service->isCacheExists($repository)
                 ) {
-                    $this->getService()->initStorageEvent();
+                    $service->initStorageEvent();
                     $fetch_from_repository = true;
-                } else if (!$repository->isCacheble()) {
+                } elseif (!$repository->isCacheble()) {
                     $fetch_from_repository = true;
                 }
             }
@@ -109,8 +116,15 @@ class EnormousServiceFilter extends CachebleServiceFilter
                     ['ids' => $ids],
                     true,
                     true
-                )
-                ->search();
+                )->search();
+
+            foreach ($items as &$item) {
+                $item = $service->prepareItem($item);
+            }
+        }
+
+        if ($items ?? null && !$fetch_from_repository) {
+            $service->setIsFromCache(true);
         }
 
         return $items ?? [];
@@ -139,4 +153,3 @@ class EnormousServiceFilter extends CachebleServiceFilter
         return $item ?? [];
     }
 }
-

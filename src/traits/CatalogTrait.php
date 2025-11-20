@@ -2,8 +2,6 @@
 
 namespace pribolshoy\repository\traits;
 
-use yii\data\Pagination;
-
 /**
  * Trait CatalogTrait
  *
@@ -14,8 +12,6 @@ use yii\data\Pagination;
  */
 trait CatalogTrait
 {
-    protected string $pagination_class = 'yii\\data\\Pagination';
-
     /**
      * Номер актуальной страницы каталога
      * @var int
