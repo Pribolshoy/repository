@@ -205,6 +205,145 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
+     * Получить параметр по имени
+     *
+     * @param string $name Имя параметра
+     * @return mixed
+     */
+    public function getParam(string $name)
+    {
+        return $this->params[$name] ?? null;
+    }
+
+    /**
+     * Проверить существование параметра
+     *
+     * @param string $name Имя параметра
+     * @return bool
+     */
+    public function existsParam(string $name): bool
+    {
+        if (!isset($this->params[$name])) {
+            return false;
+        }
+        if (!$this->getParams()[$name]) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Проверить существование фильтра
+     *
+     * @param string $name Имя фильтра
+     * @return bool
+     */
+    public function existsFilter(string $name): bool
+    {
+        if (!isset($this->filter[$name])) {
+            return false;
+        }
+        if (!$this->filter[$name]) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Добавление значения из self::params в self::filter при
+     * условии что оно существует
+     *
+     * @param $value
+     * @param string $default_value
+     * @param bool $append
+     *
+     * @return array|void|string
+     */
+    public function addFilterValueByParams($value, $default_value = '', $append = true)
+    {
+        // если существует такой параметр
+        if (isset($this->params[$value])) {
+            if (is_array($this->params[$value])) {
+
+                if (!empty($this->filter[$value]) && $append) {
+
+                    if (is_array($this->filter[$value])) {
+                        $this->filter[$value] = array_merge($this->filter[$value], $this->params[$value]);
+                    } else {
+                        $this->filter[$value] = array_merge([$this->filter[$value]], $this->params[$value]);
+                    }
+
+                } else {
+                    $this->filter[$value] = $this->params[$value];
+                }
+
+            } else {
+                $parts = explode(',', $this->params[$value]);
+
+                if (count($parts) > 1) {
+
+                    if (!empty($this->filter[$value]) && $append) {
+
+                        if (is_array($this->filter[$value])) {
+                            $this->filter[$value] = array_merge($this->filter[$value], $parts);
+                        } else {
+                            $this->filter[$value] = array_merge([$this->filter[$value]], $parts);
+                        }
+
+                    } else {
+                        $this->filter[$value] = $parts;
+                    }
+
+                } else {
+                    if (!empty($this->filter[$value]) && $append) {
+
+                        if (is_array($this->filter[$value])) {
+                            $this->filter[$value] = array_merge($this->filter[$value], is_array($this->params[$value]) ?: [$this->params[$value]]);
+                        } else {
+                            $this->filter[$value] = array_merge([$this->filter[$value]], is_array($this->params[$value]) ?: [$this->params[$value]]);
+                        }
+
+                    } else {
+                        $this->filter[$value] = $this->params[$value];
+                    }
+                }
+            }
+        } elseif (strlen($default_value)) {
+            $this->filter[$value] = $default_value;
+        } elseif (is_bool($default_value)) {
+            $this->filter[$value] = $default_value;
+        }
+
+        return strlen($this->filter[$value] ?? null);
+    }
+
+    /**
+     * Присоединить значение к фильтру
+     *
+     * @param $filter_key
+     * @param $value
+     * @param bool $append
+     * @return array|void|string
+     */
+    public function addFilterValue($filter_key, $value, $append = true)
+    {
+        if (!empty($this->filter[$filter_key]) && $append) {
+
+            if (is_array($this->filter[$filter_key])) {
+                $this->filter[$filter_key] = array_merge($this->filter[$filter_key], [$value]);
+            } else {
+                $this->filter[$filter_key] = array_merge([$this->filter[$filter_key]], [$value]);
+            }
+
+        } else {
+            $this->filter[$filter_key] = $value;
+        }
+
+        return $this->filter[$filter_key];
+    }
+
+
+    /**
      * @param bool $refresh flag that we need to refresh
      *                      query object from previous conditions.
      * @return bool|mixed
