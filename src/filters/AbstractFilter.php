@@ -66,7 +66,7 @@ abstract class AbstractFilter implements FilterInterface
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById($id, array $attributes = [])
+    public function getById(int $id, array $attributes = [])
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }

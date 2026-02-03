@@ -314,7 +314,7 @@ abstract class AbstractRepository implements RepositoryInterface
             $this->filter[$value] = $default_value;
         }
 
-        return strlen($this->filter[$value] ?? null);
+        return $this->getFilter($value);
     }
 
     /**

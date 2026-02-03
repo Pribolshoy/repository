@@ -57,7 +57,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById($id, array $attributes = [])
+    public function getById(int $id, array $attributes = [])
     {
         $item = $this->getByIds([$id], $attributes);
 
