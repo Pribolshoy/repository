@@ -299,7 +299,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
      * Get string hash from array.
      * Hash is using for caching.
      *
-     * @param array $data
+     * @param array $data deprecated
      * @param bool $hashToMd5
      *
      * @return string
@@ -307,12 +307,7 @@ abstract class AbstractCachebleRepository extends AbstractRepository implements 
     public function getHashFromArray(array $data, bool $hashToMd5 = false): string
     {
         if ($data) {
-            // TODO: вставить сюда Hasher
-            $hash = json_encode(array_filter($data));
-
-            if (strlen($hash) > 50 || $hashToMd5) {
-                $hash = md5($hash);
-            }
+            $hash = Hasher::hash($data);
         }
 
         return $hash ?? '';

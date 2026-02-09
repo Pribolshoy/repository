@@ -47,7 +47,7 @@ class PaginatedServiceFilter extends AbstractFilter
             // get pagination from repository
             $service->setPages($pages = $repository->getPages());
 
-            if ($repository->isCacheble()) {
+            if ($service->isUseCache() && $repository->isCacheble()) {
                 // ids
                 $repository
                     ->setHashName($hash)
@@ -65,7 +65,7 @@ class PaginatedServiceFilter extends AbstractFilter
         if ($ids && ($items = $service->getByIds($ids))) {
             $service->setItems($items);
 
-            if (is_null($pages)) {
+            if (is_null($pages) && $service->isUseCache()) {
                 $pages = $repository
                     ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
                     ->getFromCache(false, $service->getCacheParams('get'));
