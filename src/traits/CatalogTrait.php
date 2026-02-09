@@ -20,9 +20,15 @@ trait CatalogTrait
 
     /**
      * Объект Pagination
+     * TODO: make protected
      * @var
      */
     public $pages;
+
+    public function getPaginatorClass($defaultPaginationClass): string
+    {
+        return $this->pagination_class ?? $defaultPaginationClass;
+    }
 
     /**
      * Задает параметр pages объектом Pagination

@@ -65,7 +65,7 @@ abstract class AbstractRepository implements RepositoryInterface
      *
      * @var array
      */
-    public ?array $items = null;
+    public $items = null;
 
     protected ?int $total_count = null;
 
@@ -85,6 +85,12 @@ abstract class AbstractRepository implements RepositoryInterface
 
     public function __construct(array $params = [], ?string $model_class = null)
     {
+        foreach ($params as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->$key = $value;
+            }
+        }
+
         $this->params = $params;
         if ($model_class) {
             $this->model_class = $model_class;
