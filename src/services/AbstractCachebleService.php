@@ -444,7 +444,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
         $filter = $this->getFilter();
 
         return $filter
-                ->getPrimaryKeyByAlias($alias, $repository) ?? null;
+            ->getPrimaryKeyByAlias($alias, $repository) ?? null;
     }
 
     /**
@@ -461,7 +461,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
         /** @var CachebleServiceFilter|EnormousServiceFilter $filter */
         $filter = $this->getFilter();
         return $filter
-                ->getByAlias($alias, $attributes) ?? null;
+            ->getByAlias($alias, $attributes) ?? null;
     }
 
     /**
@@ -645,6 +645,11 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
         // delete items
         $itemsHashName = $this->getHashPrefix() . $repository->getHashPrefix();
+
+        // TODO: подумать как исправить костыль
+        if ($this->getCacheParams('get')['strategy'] == 'string') {
+            $itemsHashName .= '*';
+        }
         $repository
             ->setHashName($itemsHashName)
             ->deleteFromCache();

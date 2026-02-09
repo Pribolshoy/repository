@@ -64,13 +64,16 @@ class PaginatedServiceFilter extends AbstractFilter
             $service->setItems($items);
 
             if (is_null($pages) && $service->isUseCache()) {
+                // пагинация из кеша
                 $pages = $repository
                     ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
                     ->getFromCache(false, $service->getCacheParams('get'));
+
+                $service->setPages($pages);
             }
         }
 
-        if (is_null($pages)) {
+        if (is_null($service->getPages())) {
             $service->setPages($repository->getPages());
         }
 
