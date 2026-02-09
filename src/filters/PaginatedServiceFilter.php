@@ -53,12 +53,10 @@ class PaginatedServiceFilter extends AbstractFilter
                     ->setHashName($hash)
                     ->setToCache($ids, $service->getCacheParams('set'));
 
-                if ($pages) {
-                    // pagination results
-                    $repository
-                        ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
-                        ->setToCache($repository->getPages(), $service->getCacheParams('set'));
-                }
+                // pagination results
+                $repository
+                    ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
+                    ->setToCache($repository->getPages(), $service->getCacheParams('set'));
             }
         }
 
@@ -70,10 +68,10 @@ class PaginatedServiceFilter extends AbstractFilter
                     ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())
                     ->getFromCache(false, $service->getCacheParams('get'));
             }
+        }
 
-            if ($pages) {
-                $service->setPages($pages);
-            }
+        if (is_null($pages)) {
+            $service->setPages($repository->getPages());
         }
 
         return $service->getItems();
