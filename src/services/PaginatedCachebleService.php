@@ -78,6 +78,12 @@ abstract class PaginatedCachebleService extends AbstractCachebleService implemen
 
         // entities
         $entitiesHashName = parent::getHashPrefix() . $repository->getHashPrefix();
+
+        // TODO: подумать как исправить костыль
+        if ($this->getCacheParams('get')['strategy'] == 'string') {
+            $entitiesHashName .= '*';
+        }
+
         $repository
             ->setHashName($entitiesHashName)
             ->deleteFromCache();
@@ -86,7 +92,14 @@ abstract class PaginatedCachebleService extends AbstractCachebleService implemen
 
         // pagination
         $paginationHashName = $this->getPaginationHashPrefix()
+            . parent::getHashPrefix()
             . $repository->getHashPrefix();
+
+        // TODO: подумать как исправить костыль
+        if ($this->getCacheParams('get')['strategy'] == 'string') {
+            $paginationHashName .= '*';
+        }
+
         $repository
             ->setHashName($paginationHashName)
             ->deleteFromCache();
