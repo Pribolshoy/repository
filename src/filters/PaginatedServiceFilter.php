@@ -34,10 +34,8 @@ class PaginatedServiceFilter extends AbstractFilter
 
         $pages = null;
         $ids = [];
-        // Только если кеш разрешен и флаг готовности существует
-        // (иначе выборка может быть неполной, т.к кеш наполняется в данный момент)
-        $isCacheExists = $service->isCacheExists($repository);
-        if ($service->isUseCache() && $isCacheExists) {
+
+        if ($service->isUseCache()) {
             $ids = $repository
                 ->setHashName($hash)
                 ->getFromCache(false, $service->getCacheParams('get'));
@@ -66,7 +64,7 @@ class PaginatedServiceFilter extends AbstractFilter
         if ($ids && ($items = $service->getByIds($ids))) {
             $service->setItems($items);
 
-            if (is_null($pages) && $service->isUseCache() && $isCacheExists) {
+            if (is_null($pages) && $service->isUseCache()) {
                 // пагинация из кеша
                 $pages = $repository
                     ->setHashName($service->getPaginationHashPrefix() . $repository->getHashName())

@@ -86,7 +86,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
 
         $fetch_from_repository = false;
 
-        if ($service->isUseCache()) {
+        if ($service->isUseCache() && $service->isCacheExists($repository)) {
             $items = $repository
                 ->setHashName(
                     $service->getHashPrefix()
@@ -94,19 +94,14 @@ class EnormousServiceFilter extends CachebleServiceFilter
                 )->getFromCache(false, $params);
 
             // if we got items from cache, then
-            if (!$items) {
-                // if cache not exists - do init storage for all items
-                if (
-                    $repository->isCacheble()
-                    && !$service->isCacheExists($repository)
-                ) {
-                    $service->initStorageEvent();
-                    $fetch_from_repository = true;
-                } elseif (!$repository->isCacheble()) {
-                    $fetch_from_repository = true;
-                }
+            if (!$items && !$repository->isCacheble()) {
+                $fetch_from_repository = true;
             }
         } else {
+            if ($service->isUseCache() && !$service->isCacheExists($repository) && $repository->isCacheble()) {
+                // if cache not exists - do init storage for all items
+                $service->initStorageEvent();
+            }
             $fetch_from_repository = true;
         }
 

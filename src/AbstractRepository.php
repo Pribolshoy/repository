@@ -22,6 +22,11 @@ abstract class AbstractRepository implements RepositoryInterface
     public bool $lazy_load = false;
 
     /**
+     * @var null|string Event of search if need
+     */
+    public ?string $event = null;
+
+    /**
      * Class of model object which will using for search.
      * It needs for implementing self::model
      *
@@ -101,6 +106,14 @@ abstract class AbstractRepository implements RepositoryInterface
     }
 
     /**
+     * @return string|null
+     */
+    public function getEvent(): ?string
+    {
+        return $this->event;
+    }
+
+    /**
      * @param $need_total
      *
      * @return $this
@@ -169,6 +182,12 @@ abstract class AbstractRepository implements RepositoryInterface
         bool $update_filter = false,
         bool $clear_filter = false
     ): RepositoryInterface {
+        foreach ($params as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->$key = $value;
+            }
+        }
+
         $this->params = $params;
         if ($clear_filter) {
             $this->filter = [];
@@ -270,45 +289,35 @@ abstract class AbstractRepository implements RepositoryInterface
         // если существует такой параметр
         if (isset($this->params[$value])) {
             if (is_array($this->params[$value])) {
-
                 if (!empty($this->filter[$value]) && $append) {
-
                     if (is_array($this->filter[$value])) {
                         $this->filter[$value] = array_merge($this->filter[$value], $this->params[$value]);
                     } else {
                         $this->filter[$value] = array_merge([$this->filter[$value]], $this->params[$value]);
                     }
-
                 } else {
                     $this->filter[$value] = $this->params[$value];
                 }
-
             } else {
                 $parts = explode(',', $this->params[$value]);
 
                 if (count($parts) > 1) {
-
                     if (!empty($this->filter[$value]) && $append) {
-
                         if (is_array($this->filter[$value])) {
                             $this->filter[$value] = array_merge($this->filter[$value], $parts);
                         } else {
                             $this->filter[$value] = array_merge([$this->filter[$value]], $parts);
                         }
-
                     } else {
                         $this->filter[$value] = $parts;
                     }
-
                 } else {
                     if (!empty($this->filter[$value]) && $append) {
-
                         if (is_array($this->filter[$value])) {
                             $this->filter[$value] = array_merge($this->filter[$value], is_array($this->params[$value]) ?: [$this->params[$value]]);
                         } else {
                             $this->filter[$value] = array_merge([$this->filter[$value]], is_array($this->params[$value]) ?: [$this->params[$value]]);
                         }
-
                     } else {
                         $this->filter[$value] = $this->params[$value];
                     }
@@ -334,13 +343,11 @@ abstract class AbstractRepository implements RepositoryInterface
     public function addFilterValue($filter_key, $value, $append = true)
     {
         if (!empty($this->filter[$filter_key]) && $append) {
-
             if (is_array($this->filter[$filter_key])) {
                 $this->filter[$filter_key] = array_merge($this->filter[$filter_key], [$value]);
             } else {
                 $this->filter[$filter_key] = array_merge([$this->filter[$filter_key]], [$value]);
             }
-
         } else {
             $this->filter[$filter_key] = $value;
         }
