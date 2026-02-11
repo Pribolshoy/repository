@@ -584,7 +584,7 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
             array_merge($primaryKeyArray, ['limit' => 1,])
         );
 
-        if (!$repository->isCacheble()) {
+        if (!$this->isUseCache() || !$repository->isCacheble()) {
             return true;
         }
 
