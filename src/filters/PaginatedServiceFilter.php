@@ -87,11 +87,12 @@ class PaginatedServiceFilter extends AbstractFilter
      *
      * @param array $ids
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return array|void
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }

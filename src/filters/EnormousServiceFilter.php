@@ -53,13 +53,14 @@ class EnormousServiceFilter extends CachebleServiceFilter
     /**
      * @param int $id
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById(int $id, array $attributes = [])
+    public function getById(int $id, array $attributes = [], bool $cacheOnly = false)
     {
-        $item = $this->getByIds([$id], $attributes);
+        $item = $this->getByIds([$id], $attributes, $cacheOnly);
 
         return $item[0] ?? [];
     }
@@ -67,11 +68,12 @@ class EnormousServiceFilter extends CachebleServiceFilter
     /**
      * @param array $ids
      * @param array $attributes not used
+     * @param bool $cacheOnly
      *
      * @return array
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
         if (!$ids) {
             return [];
@@ -86,26 +88,26 @@ class EnormousServiceFilter extends CachebleServiceFilter
 
         $fetch_from_repository = false;
 
-        if ($service->isUseCache() && $service->isCacheExists($repository)) {
-            $items = $repository
-                ->setHashName(
-                    $service->getHashPrefix()
-                    . $repository->getHashPrefix()
-                )->getFromCache(false, $params);
+        $repository->setHashName($service->getHashPrefix() . $repository->getHashPrefix());
 
-            // if we got items from cache, then
+        if ($service->isUseCache() && $service->isCacheExists($repository, $params)) {
+            $items = $repository->getFromCache(false, $params);
+
             if (!$items && !$repository->isCacheble()) {
                 $fetch_from_repository = true;
             }
         } else {
-            if ($service->isUseCache() && !$service->isCacheExists($repository) && $repository->isCacheble()) {
+            if (
+                !$cacheOnly && $service->isUseCache()
+                && !$service->isCacheExists($repository) && $repository->isCacheble()
+            ) {
                 // if cache not exists - do init storage for all items
                 $service->initStorageEvent();
             }
             $fetch_from_repository = true;
         }
 
-        if ($fetch_from_repository) {
+        if ($fetch_from_repository && !$cacheOnly) {
             $items = $repository
                 ->setParams(
                     ['ids' => $ids],
@@ -118,7 +120,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
             }
         }
 
-        if ($items ?? null && !$fetch_from_repository) {
+        if (($items ?? null) && !$fetch_from_repository) {
             $service->setIsFromCache(true);
         }
 
@@ -130,16 +132,17 @@ class EnormousServiceFilter extends CachebleServiceFilter
      *
      * @param string $alias
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return array|mixed
      * @throws \Exception
      */
-    public function getByAlias(string $alias, array $attributes = [])
+    public function getByAlias(string $alias, array $attributes = [], bool $cacheOnly = false)
     {
         /** @var CachebleServiceInterface $service */
         $service = $this->getService();
 
-        if ($item = parent::getByAlias($alias, $attributes)) {
+        if ($item = parent::getByAlias($alias, $attributes, $cacheOnly)) {
             if ($item) {
                 $service->addItem($item, false);
             }

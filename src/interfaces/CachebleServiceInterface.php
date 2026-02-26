@@ -48,9 +48,10 @@ interface CachebleServiceInterface extends ServiceInterface
      * Check if cache exists.
      *
      * @param CachebleRepositoryInterface|null $repository Repository instance
+     * @param array $params Additional parameters for cache get operation
      * @return bool
      */
-    public function isCacheExists(?CachebleRepositoryInterface $repository = null): bool;
+    public function isCacheExists(?CachebleRepositoryInterface $repository = null, array $params = []): bool;
 
     /**
      * Initialize storage event.
@@ -166,9 +167,10 @@ interface CachebleServiceInterface extends ServiceInterface
      *
      * @param string $alias Alias value
      * @param array $attributes Additional attributes
+     * @param bool $cacheOnly If true, do not fetch from storage on cache miss
      * @return mixed
      */
-    public function getByAlias(string $alias, array $attributes = []);
+    public function getByAlias(string $alias, array $attributes = [], bool $cacheOnly = false);
 
     /**
      * Add cache params for get or set operations.
@@ -225,5 +227,25 @@ interface CachebleServiceInterface extends ServiceInterface
      * @return void
      */
     public function afterRefreshItem(array $primaryKeyArray): void;
+
+    /**
+     * Save entity to cache by primary key (key extracted from item via getItemIdValue).
+     *
+     * @param object|array $item Entity to save
+     * @param \pribolshoy\repository\interfaces\CachebleRepositoryInterface|null $repository Repository (if null, obtained via service)
+     *
+     * @return bool Success
+     */
+    public function setItemToCache($item, $repository = null): bool;
+
+    /**
+     * Save multiple entities to cache.
+     *
+     * @param array $items Array of entities to save (uses getItemIdValue for each key)
+     * @param \pribolshoy\repository\interfaces\CachebleRepositoryInterface|null $repository Repository (if null, obtained via service)
+     *
+     * @return int Number of successfully cached items
+     */
+    public function setItemsToCache(array $items, $repository = null): int;
 }
 

@@ -136,11 +136,12 @@ class ServiceFilter extends AbstractFilter
     /**
      * @param int $id
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return mixed|null
      * @throws Exception
      */
-    public function getById(int $id, array $attributes = [])
+    public function getById(int $id, array $attributes = [], bool $cacheOnly = false)
     {
         /** @var ServiceInterface $service */
         $service = $this->getService();
@@ -170,16 +171,17 @@ class ServiceFilter extends AbstractFilter
     /**
      * @param array $ids
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return array
      * @throws Exception
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
         $result = [];
 
         foreach ($ids as $id) {
-            if ($item = $this->getById($id, $attributes)) {
+            if ($item = $this->getById($id, $attributes, $cacheOnly)) {
                 $result[] = $item;
             }
         }

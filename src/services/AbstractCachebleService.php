@@ -8,6 +8,7 @@ use pribolshoy\repository\Logger;
 use pribolshoy\repository\exceptions\ServiceException;
 use pribolshoy\repository\filters\CachebleServiceFilter;
 use pribolshoy\repository\filters\EnormousServiceFilter;
+use pribolshoy\repository\interfaces\CachebleFilterInterface;
 use pribolshoy\repository\interfaces\BaseServiceInterface;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
@@ -315,22 +316,25 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * It checks by look at existing of caching flag.
      *
      * @param CachebleRepositoryInterface|null $repository
+     * @param array $params Additional parameters for cache get operation
      *
      * @return mixed
      * @throws Exception
      */
-    public function isCacheExists(?CachebleRepositoryInterface $repository = null): bool
+    public function isCacheExists(?CachebleRepositoryInterface $repository = null, array $params = []): bool
     {
         /** @var CachebleRepositoryInterface $repository */
         if (!$repository) {
             $repository = $this->getRepository();
         }
 
+        $cacheParams = array_merge(['strategy' => 'string'], $params);
+
         return (bool)$repository->setHashName(
             $this->caching_prefix
             . $this->getHashPrefix()
             . $repository->getHashPrefix()
-        )->getFromCache(false, ['strategy' => 'string']);
+        )->getFromCache(false, $cacheParams);
     }
 
     /**
@@ -456,12 +460,34 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
      * @return array|mixed
      * @throws Exception
      */
-    public function getByAlias(string $alias, array $attributes = [])
+    public function getByAlias(string $alias, array $attributes = [], bool $cacheOnly = false)
     {
         /** @var CachebleServiceFilter|EnormousServiceFilter $filter */
         $filter = $this->getFilter();
         return $filter
-            ->getByAlias($alias, $attributes) ?? null;
+            ->getByAlias($alias, $attributes, $cacheOnly) ?? null;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setItemToCache($item, $repository = null): bool
+    {
+        /** @var CachebleFilterInterface $filter */
+        $filter = $this->getFilter();
+
+        return $filter->setItemToCache($item, $repository);
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setItemsToCache(array $items, $repository = null): int
+    {
+        /** @var CachebleFilterInterface $filter */
+        $filter = $this->getFilter();
+
+        return $filter->setItemsToCache($items, $repository);
     }
 
     /**
@@ -501,19 +527,8 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
 
             $this->setItems($this->sort($items));
 
-            // if repos is cacheble - set items to cache
             if ($this->isUseCache() && $repository->isCacheble()) {
-                $baseHashName = $this->getHashPrefix() . $repository->getHashPrefix();
-                foreach ($items as $item) {
-                    $hash_name = $baseHashName
-                        . $this->getIdPostfix() . $this->getItemIdValue($item);
-
-                    $repository
-                        ->setHashName($hash_name)
-                        ->setToCache($item, $this->getCacheParams('set'));
-                }
-
-                Logger::log('initStorage', $baseHashName, 'service', $items);
+                $this->setItemsToCache($items, $repository);
             }
         }
 

@@ -110,6 +110,30 @@ abstract class PaginatedCachebleService extends AbstractCachebleService implemen
     }
 
     /**
+     * Paginated service does not support caching items by ID.
+     *
+     * @throws \BadMethodCallException
+     */
+    public function setItemToCache($item, $repository = null): bool
+    {
+        throw new \BadMethodCallException(
+            'Method ' . __METHOD__ . ' is not supported for paginated service. Use item service directly.'
+        );
+    }
+
+    /**
+     * Paginated service does not support caching items by ID.
+     *
+     * @throws \BadMethodCallException
+     */
+    public function setItemsToCache(array $items, $repository = null): int
+    {
+        throw new \BadMethodCallException(
+            'Method ' . __METHOD__ . ' is not supported for paginated service. Use item service directly.'
+        );
+    }
+
+    /**
      * Получение элементов по массиву ID
      *
      * Переопределяет базовый метод для использования сервиса элементов,
@@ -122,11 +146,11 @@ abstract class PaginatedCachebleService extends AbstractCachebleService implemen
      * @throws ServiceException Если getItemService() не переопределен
      * @throws \Exception При ошибке получения элементов
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
         $itemService = $this->getItemService();
 
-        return $itemService->getByIds($ids, $attributes) ?? [];
+        return $itemService->getByIds($ids, $attributes, $cacheOnly) ?? [];
     }
 
     /**

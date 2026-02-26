@@ -42,18 +42,20 @@ interface FilterInterface extends UsedByServiceInterface
      *
      * @param int $id Item ID
      * @param array $attributes Additional attributes
+     * @param bool $cacheOnly If true, do not fetch from storage on cache miss
      * @return mixed|null
      */
-    public function getById(int $id, array $attributes = []);
+    public function getById(int $id, array $attributes = [], bool $cacheOnly = false);
 
     /**
      * Get items by IDs.
      *
      * @param array $ids Array of item IDs
      * @param array $attributes Additional attributes
+     * @param bool $cacheOnly If true, do not fetch from storage on cache miss
      * @return array
      */
-    public function getByIds(array $ids, array $attributes = []): array;
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array;
 
     /**
      * Filter item by attributes.

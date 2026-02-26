@@ -196,18 +196,8 @@ abstract class EnormousCachebleService extends AbstractCachebleService implement
 
             $this->setIsFetching(($repository->getTotalCount() > ($fetched_items + count($items))));
 
-            // if repos is cacheble - set items to cache
             if ($repository->isCacheble()) {
-                $baseHashName = $this->getHashPrefix() . $repository->getHashPrefix();
-                foreach ($items as $item) {
-                    $hash_name = $baseHashName
-                        . $this->getIdPostfix() . $this->getItemIdValue($item);
-
-                    $repository->setHashName($hash_name)
-                        ->setToCache($item, $this->getCacheParams('set'));
-                }
-                
-                Logger::log('initStorage', $baseHashName, 'service', $items);
+                $this->setItemsToCache($items, $repository);
             }
         }
 

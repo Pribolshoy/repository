@@ -62,11 +62,12 @@ abstract class AbstractFilter implements FilterInterface
     /**
      * @param int $id
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById(int $id, array $attributes = [])
+    public function getById(int $id, array $attributes = [], bool $cacheOnly = false)
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }
@@ -74,11 +75,12 @@ abstract class AbstractFilter implements FilterInterface
     /**
      * @param array $ids
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return array
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
         throw new \Exception('Method ' . __METHOD__ . ' is not realized!');
     }

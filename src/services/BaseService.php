@@ -499,20 +499,21 @@ abstract class BaseService implements BaseServiceInterface
      * @return mixed|null
      * @throws \Exception
      */
-    public function getById(int $id, array $attributes = [])
+    public function getById(int $id, array $attributes = [], bool $cacheOnly = false)
     {
-        return $this->getFilter()->getById($id, $attributes) ?? [];
+        return $this->getFilter()->getById($id, $attributes, $cacheOnly) ?? [];
     }
 
     /**
      * @param array $ids
      * @param array $attributes
+     * @param bool $cacheOnly
      *
      * @return array
      * @throws \Exception
      */
-    public function getByIds(array $ids, array $attributes = []): array
+    public function getByIds(array $ids, array $attributes = [], bool $cacheOnly = false): array
     {
-        return $this->getFilter()->getByIds($ids, $attributes) ?? [];
+        return $this->getFilter()->getByIds($ids, $attributes, $cacheOnly) ?? [];
     }
 }

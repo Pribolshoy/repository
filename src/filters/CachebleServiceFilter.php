@@ -3,6 +3,8 @@
 namespace pribolshoy\repository\filters;
 
 use Exception;
+use pribolshoy\repository\Logger;
+use pribolshoy\repository\interfaces\CachebleFilterInterface;
 use pribolshoy\repository\interfaces\CachebleRepositoryInterface;
 use pribolshoy\repository\interfaces\CachebleServiceInterface;
 
@@ -11,7 +13,7 @@ use pribolshoy\repository\interfaces\CachebleServiceInterface;
  *
  * @package app\repositories
  */
-class CachebleServiceFilter extends ServiceFilter
+class CachebleServiceFilter extends ServiceFilter implements CachebleFilterInterface
 {
     /**
      * Get all elements from cache or storage.
@@ -64,11 +66,12 @@ class CachebleServiceFilter extends ServiceFilter
      *
      * @param string $alias
      * @param array $attributes
+     * @param bool $cacheOnly If true, do not fetch from storage on cache miss
      *
      * @return array|mixed
      * @throws Exception
      */
-    public function getByAlias(string $alias, array $attributes = [])
+    public function getByAlias(string $alias, array $attributes = [], bool $cacheOnly = false)
     {
         /** @var CachebleServiceInterface $service */
         $service = $this->getService();
@@ -76,7 +79,8 @@ class CachebleServiceFilter extends ServiceFilter
         /** @var CachebleRepositoryInterface $repository */
         $primaryKey = $this->getPrimaryKeyByAlias(
             $alias,
-            $repository = $service->getRepository()
+            $repository = $service->getRepository(),
+            $cacheOnly
         );
 
         if ($primaryKey) {
@@ -92,21 +96,23 @@ class CachebleServiceFilter extends ServiceFilter
                     ->getFromCache();
 
                 if (!$item) {
-                    if (
-                        $repository->isCacheble()
-                        && !$service->isCacheExists()
-                    ) {
-                        $service->initStorageEvent();
-                        $fetch_from_repository = true;
-                    } elseif (!$repository->isCacheble()) {
-                        $fetch_from_repository = true;
+                    if (!$cacheOnly) {
+                        if (
+                            $repository->isCacheble()
+                            && !$service->isCacheExists()
+                        ) {
+                            $service->initStorageEvent();
+                            $fetch_from_repository = true;
+                        } elseif (!$repository->isCacheble()) {
+                            $fetch_from_repository = true;
+                        }
                     }
                 }
             } else {
                 $fetch_from_repository = true;
             }
 
-            if ($fetch_from_repository) {
+            if ($fetch_from_repository && !$cacheOnly) {
                 // get primary key by repository
                 // because cache intiation may by sends to queue
                 $items = $repository
@@ -134,11 +140,12 @@ class CachebleServiceFilter extends ServiceFilter
      *
      * @param string $alias
      * @param CachebleRepositoryInterface|null $repository
+     * @param bool $cacheOnly If true, do not fetch from storage on cache miss
      *
      * @return mixed
      * @throws Exception
      */
-    public function getPrimaryKeyByAlias(string $alias, ?CachebleRepositoryInterface $repository = null)
+    public function getPrimaryKeyByAlias(string $alias, ?CachebleRepositoryInterface $repository = null, bool $cacheOnly = false)
     {
         /** @var CachebleServiceInterface $service */
         $service = $this->getService();
@@ -166,7 +173,7 @@ class CachebleServiceFilter extends ServiceFilter
                 ->getFromCache();
 
             // if primary key not found - checks if cache exists
-            if (!$primaryKey) {
+            if (!$primaryKey && !$cacheOnly) {
                 if (
                     $repository->isCacheble()
                     && !$service->isCacheExists($repository)
@@ -181,7 +188,7 @@ class CachebleServiceFilter extends ServiceFilter
             $fetch_from_repository = true;
         }
 
-        if ($fetch_from_repository) {
+        if ($fetch_from_repository && !$cacheOnly) {
             // get primary key throw repository
             // because cache intiation may by sends to queue
             $items = $repository
@@ -197,5 +204,67 @@ class CachebleServiceFilter extends ServiceFilter
         }
 
         return $primaryKey ?? null;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setItemToCache($item, ?CachebleRepositoryInterface $repository = null): bool
+    {
+        /** @var CachebleServiceInterface $service */
+        $service = $this->getService();
+
+        if (!$service->isUseCache()) {
+            return false;
+        }
+
+        /** @var CachebleRepositoryInterface $repository */
+        if ($repository === null) {
+            $repository = $service->getRepository();
+        }
+        if (!$repository->isCacheble()) {
+            return false;
+        }
+
+        $primaryKeyValue = $service->getItemIdValue($item);
+        $hashName = $service->getHashPrefix()
+            . $repository->getHashPrefix()
+            . $service->getIdPostfix()
+            . $primaryKeyValue;
+
+        $repository->setHashName($hashName)->setToCache($item, $service->getCacheParams('set'));
+
+        return true;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function setItemsToCache(array $items, ?CachebleRepositoryInterface $repository = null): int
+    {
+        /** @var CachebleServiceInterface $service */
+        $service = $this->getService();
+
+        if ($repository === null) {
+            $repository = $service->getRepository();
+        }
+
+        $count = 0;
+        foreach ($items as $item) {
+            if ($this->setItemToCache($item, $repository)) {
+                $count++;
+            }
+        }
+
+        if ($count > 0) {
+            Logger::log(
+                'setItemsToCache',
+                $service->getHashPrefix() . $repository->getHashPrefix(),
+                'service',
+                $items
+            );
+        }
+
+        return $count;
     }
 }
