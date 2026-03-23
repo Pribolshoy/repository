@@ -93,7 +93,7 @@ class EnormousServiceFilter extends CachebleServiceFilter
         if ($service->isUseCache() && $service->isCacheExists($repository, $params)) {
             $items = $repository->getFromCache(false, $params);
 
-            if (!$items && !$repository->isCacheble()) {
+            if (!$items || !$repository->isCacheble()) {
                 $fetch_from_repository = true;
             }
         } else {

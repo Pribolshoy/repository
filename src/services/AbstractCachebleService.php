@@ -326,9 +326,13 @@ abstract class AbstractCachebleService extends AbstractService implements Cacheb
         /** @var CachebleRepositoryInterface $repository */
         if (!$repository) {
             $repository = $this->getRepository();
+        } else {
+            $repository = clone $repository;
         }
 
-        $cacheParams = array_merge(['strategy' => 'string'], $params);
+        // TODO: костыль
+        unset($params['fields']);
+        $cacheParams = array_merge($params, ['strategy' => 'string']);
 
         return (bool)$repository->setHashName(
             $this->caching_prefix
